@@ -9,7 +9,8 @@ int main(int argc, char* argv[]) {
 		return EXIT_FAILURE;
 	}
 	
-	printf("%s", argv[1]);
+	FILE *input;
+	input = fopen(argv[1], "r");
 
 	return EXIT_SUCCESS;
 }
