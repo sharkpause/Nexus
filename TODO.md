@@ -1,0 +1,1 @@
+[] - Change safe_strcmp to charVecStrCmp to compare CharVector to C strings
