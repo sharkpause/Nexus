@@ -1,6 +1,6 @@
-#include "lexer.h"
-#include "readFile.h"
-#include "generateCode.h"
+#include "lexer.hpp"
+#include "readFile.hpp"
+#include "generateCode.hpp"
 
 #include <cstdlib>
 #include <iostream>
@@ -14,18 +14,18 @@ int main(int argc, char* argv[]) {
     }
 
     std::string contents = readFile(argv[1]);
-    std::cout << "content: " << contents << "\n\n";
-
-    std::vector<Token> tokens = tokenize(contents);
-
-    // for(const auto& t : tokens) {
-    //     switch(t.type) {
-    //         case TokenType::_return: std::cout << "_return"; break;
-    //         case TokenType::intLiteral: std::cout << t.value.value(); break;
-    //         case TokenType::semicolon: std::cout << ";"; break;
-    //     }
-    //     std::cout << "\n";
-    // }
+    
+    Tokenizer tokenizer(std::move(contents));
+    std::vector<Token> tokens = tokenizer.tokenize();
+    
+    for(const auto& t : tokens) {
+        switch(t.type) {
+            case TokenType::exit: std::cout << "exit"; break;
+            case TokenType::intLiteral: std::cout << t.value.value(); break;
+            case TokenType::semicolon: std::cout << ";"; break;
+        }
+        std::cout << "\n";
+    }
     
     {
         std::fstream outputFile("./out.asm", std::ios::out);

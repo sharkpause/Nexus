@@ -1,4 +1,4 @@
-#include "readFile.h"
+#include "readFile.hpp"
 
 std::string readFile(const std::string& path) {
     std::ifstream input(path);

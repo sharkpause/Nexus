@@ -1,66 +1,64 @@
-#include "lexer.h"
+#include "lexer.hpp"
 
 #include <cctype>
-#include <cstdio>
+#include <cstdlib>
 #include <iostream>
 
-std::vector<Token> tokenize(const std::string& str) {
+std::vector<Token> Tokenizer::tokenize() {
     std::vector<Token> tokens;
     std::string buffer;
 
-    for(size_t i = 0; i < str.size(); i++) {
-        char currentChar = str[i];
-
-        if(std::isalpha(currentChar)) {
-            buffer.clear();
-            buffer.push_back(currentChar);
-            i++;
-
-            while(i < str.size() && std::isalnum(str[i])) {
-                buffer.push_back(str[i]);
-                i++;
+    while(peek().has_value()) {
+        if(std::isalpha(peek().value())) {
+            buffer.push_back(consume());
+            
+            while(peek().has_value() && std::isalnum(peek().value())) {
+                buffer.push_back(consume());
             }
-            i--;
 
-            if(buffer == "return") {
-                tokens.push_back(Token{
-                     TokenType::_return, 
-                     std::nullopt 
-                }
-            );
+            if(buffer == "exit") {
+                tokens.push_back({
+                    .type = TokenType::exit
+                });
+
+                buffer.clear();
+                continue;
             } else {
-                std::cerr << "Unexpected identifier: " << buffer << "\n";
+                std::cerr << "Unexpected identifier: " << buffer << std::endl;
                 exit(EXIT_FAILURE);
             }
-        }  else if(std::isdigit(currentChar)) {
-            buffer.clear();
-            buffer.push_back(currentChar);
-            i++;
+        } else if(std::isdigit(peek().value())) {
+            buffer.push_back(consume());
 
-            while(i < str.size() && std::isdigit(str[i])) {
-                buffer.push_back(str[i]);
-                i++;
+            while(peek().has_value() && std::isdigit(peek().value())) {
+                buffer.push_back(consume());
             }
-            i--;
 
-            tokens.push_back(Token{
-                 TokenType::intLiteral,
-                 buffer
-                }
-            );
-        } else if(currentChar == ';') {
-            tokens.push_back(Token{
-                 TokenType::semicolon,
-                 std::nullopt
-                }
-            );
-        } else if(std::isspace(currentChar)) {
+            tokens.push_back({
+                .type = TokenType::intLiteral,
+                .value = buffer
+            });
+
+            buffer.clear();
+            continue;
+        } else if(peek().value() == ';') {
+            tokens.push_back({
+                .type = TokenType::semicolon
+            });
+
+            consume();
+
+            continue;
+        } else if(std::isspace(peek().value())) {
+            consume();
             continue;
         } else {
-            std::cerr << "Unexpected character: " << currentChar << "\n";
+            std::cerr << "You fucked up" << std::endl;
             exit(EXIT_FAILURE);
         }
     }
+
+    mIndex = 0;
 
     return tokens;
 }
