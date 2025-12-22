@@ -1,37 +1,50 @@
 use crate::token::Token;
 
-enum ParserError {
-    EndOfInput
+#[derive(Debug)]
+pub enum ParserError {
+    EndOfInput,
+    GenericError
 }
 
 enum Statement {
     Return(Expression)
 }
 
-enum Expression {
+#[derive(Debug)]
+pub enum Expression {
     IntLiteral(i64)
 }
 
-struct Parser {
-    tokens: Vec<Token>,
-    index: usize
+pub struct Parser {
+    pub tokens: Vec<Token>,
+    pub index: usize
 }
 
 impl Parser {
-    fn parse_program(&mut self) -> Statement {
+    // pub fn parse_program(&mut self) -> Result<Statement, ParserError> {
 
+    // }
+
+    // fn parse_statement(&mut self) -> Result<Statement, ParserError> {
+
+    // }
+
+    pub fn parse_expression(&mut self) -> Result<Expression, ParserError> {
+        match self.peek_token(0) {
+            Some(Token::IntLiteral(number)) => {
+                let value = *number;
+                self.consume_token();
+                return Ok(Expression::IntLiteral(value));
+            }
+
+            _ => {
+                return Err(ParserError::GenericError);
+            }
+        }
     }
 
-    fn parse_statement(&mut self) -> Statement {
-
-    }
-
-    fn parse_expression(&mut self) -> Expression {
-
-    }
-
-    fn peek_token(&self, offset: usize) -> Option<Token> {
-        return tokens.nth(index + offset).ok_or(EndOfInput);
+    fn peek_token(&self, offset: usize) -> Option<&Token> {
+        return self.tokens.get(self.index + offset);
     }
 
     fn consume_token(&mut self) {
