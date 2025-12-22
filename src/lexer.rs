@@ -21,7 +21,7 @@ impl Lexer {
         return character;
     }
 
-    pub fn next_token(&mut self) -> Result<Token, LexerError> {
+    fn skip_whitespace(&mut self) {
         while let Some(character) = self.peek_char(0) {
             if character.is_whitespace() {
                 self.consume_char();
@@ -29,7 +29,11 @@ impl Lexer {
                 break;
             }
         }
+    }
 
+    pub fn next_token(&mut self) -> Result<Token, LexerError> {
+        self.skip_whitespace();
+        
         let current_char =
             self.peek_char(0).ok_or(LexerError::EndOfInput)?;
 
@@ -52,5 +56,25 @@ impl Lexer {
                 ))?;
 
         return Ok(Token::IntLiteral(number));
+    }
+
+    pub fn tokenize(&mut self) -> Result<Vec<Token>, LexerError> {
+        let mut tokens = Vec::new();
+
+        loop {
+            match self.next_token() {
+                Ok(token) => {
+                    tokens.push(token);
+                },
+                Err(LexerError::EndOfInput) => {
+                    break;
+                },
+                Err(error) => {
+                    return Err(error);
+                }
+            }
+        }
+
+        return Ok(tokens);
     }
 }
