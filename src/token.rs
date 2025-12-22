@@ -1,6 +1,7 @@
 pub enum Token {
     Return,
-    IntLiteral(i64)
+    IntLiteral(i64),
+    Semicolon
 }
 
 pub fn print_token(token: &Token) {
@@ -11,5 +12,8 @@ pub fn print_token(token: &Token) {
         Token::IntLiteral(number) => {
             println!("integer {}", number);
         },
+        Token::Semicolon => {
+            println!("Semicolon token");
+        }
     }
 }
