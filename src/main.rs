@@ -1,14 +1,16 @@
 mod token;
 mod lexer;
 mod parser;
+mod codegen;
 
 use crate::token::print_token;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
+use crate::codegen::codegen;
 
 fn main() {
     let mut lexer = Lexer {
-        input: String::from("return 67;\nreturn 0;"),
+        input: String::from("return 67;"),
         index: 0
     };
 
@@ -27,4 +29,7 @@ fn main() {
 
     let statements = parser.parse_program().unwrap();
     println!("\nStatements:\n{:?}", statements);
+
+    let output = codegen(statements);
+    println!("\nAssembly output:\n{}", output);
 }
