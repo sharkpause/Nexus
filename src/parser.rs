@@ -6,7 +6,8 @@ pub enum ParserError {
     GenericError
 }
 
-enum Statement {
+#[derive(Debug)]
+pub enum Statement {
     Return(Expression)
 }
 
@@ -25,9 +26,29 @@ impl Parser {
 
     // }
 
-    // fn parse_statement(&mut self) -> Result<Statement, ParserError> {
+    pub fn parse_statement(&mut self) -> Result<Statement, ParserError> {
+        match self.peek_token(0) {
+            Some(Token::Return) => {
+                self.consume_token();
 
-    // }
+                let expression = self.parse_expression()?;
+
+                match self.peek_token(0) {
+                    Some(Token::Semicolon) => {
+                        self.consume_token()
+                    },
+                    _ => {
+                        return Err(ParserError::GenericError);
+                    }
+                }
+
+                return Ok(Statement::Return(expression));
+            },
+            _ => {
+                return Err(ParserError::GenericError);
+            }
+        }
+    }
 
     pub fn parse_expression(&mut self) -> Result<Expression, ParserError> {
         match self.peek_token(0) {

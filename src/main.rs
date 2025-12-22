@@ -8,13 +8,13 @@ use crate::parser::Parser;
 
 fn main() {
     let mut lexer = Lexer {
-        input: String::from("09103809"),
+        input: String::from("return 67;"),
         index: 0
     };
 
     let tokens = lexer.tokenize().unwrap();
 
-    println!("Tokens:\n");
+    println!("Tokens:");
 
     for token in &tokens {
         print_token(token);
@@ -25,10 +25,6 @@ fn main() {
         index: 0
     };
 
-    println!("\n\nExpression:");
-
-    let expressions = parser.parse_expression().unwrap();
-    
-    println!("Expression: {:?}", expressions);
-
+    let statements = parser.parse_statement().unwrap();
+    println!("\nStatements:\n{:?}", statements);
 }
