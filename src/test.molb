@@ -1,3 +1,4 @@
 function int entry() {
-    return (8 - 3)/5;
+    var int x = 5;
+    return (8 - 3) / 5 ;
 }

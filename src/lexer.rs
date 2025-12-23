@@ -46,6 +46,7 @@ impl Lexer {
             '-' => Token::Minus,
             '*' => Token::Star,
             '/' => Token::Slash,
+            '=' => Token::Equal,
             _ => return None,
         };
 
@@ -96,6 +97,7 @@ impl Lexer {
                 "return" => Ok(Token::Return),
                 "function" => Ok(Token::Function),
                 "int" => Ok(Token::IntType),
+                "var" => Ok(Token::Var),
                 _ => Ok(Token::Identifier(token))
             }
         } else {

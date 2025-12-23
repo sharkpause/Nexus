@@ -15,7 +15,8 @@ pub enum TopLevel {
 
 #[derive(Debug)]
 pub enum Statement {
-    Return(Expression)
+    Return(Expression),
+    VariableDeclare(Type, String, Expression)
 }
 
 #[derive(Debug)]
@@ -71,6 +72,32 @@ impl Parser {
         }
     }
 
+    pub fn expect_type(&mut self) -> Result<Type, ParserError> {
+        match self.peek_token(0) {
+            Some(Token::IntType) => {
+                self.consume_token();
+                return Ok(Type::Int);
+            },
+            _ => {
+                return Err(ParserError::UnexpectedToken);
+            }
+        }
+    }
+
+    pub fn expect_identifer(&mut self) -> Result<String, ParserError> {
+        match self.peek_token(0) {
+            Some(Token::Identifier(value)) => {
+                let temp = value.clone();
+                self.consume_token();
+
+                return Ok(temp);
+            },
+            _ => {
+                return Err(ParserError::UnexpectedToken);
+            }
+        }
+    }
+
     pub fn parse_program(&mut self) -> Result<Vec<TopLevel>, ParserError> {
         let mut program: Vec<TopLevel> = Vec::new();
 
@@ -93,16 +120,9 @@ impl Parser {
     pub fn parse_function(&mut self) -> Result<Function, ParserError> {
         self.expect_token(&Token::Function)?;
 
-        self.expect_token(&Token::IntType)?;
+        let return_type = self.expect_type()?;
 
-        let function_name =
-            if let Some(Token::Identifier(name)) = self.peek_token(0).cloned() {
-                self.consume_token();
-
-                name.clone()
-            } else {
-                return Err(ParserError::UnexpectedToken);
-            };
+        let function_name = self.expect_identifer()?;
 
         self.expect_token(&Token::LeftParentheses)?;
         self.expect_token(&Token::RightParentheses)?;
@@ -114,7 +134,7 @@ impl Parser {
 
         return Ok(Function {
             name: function_name,
-            return_type: Type::Int,
+            return_type: return_type,
             body: function_statements
         });
     }
@@ -151,6 +171,17 @@ impl Parser {
                 }
 
                 return Ok(Statement::Return(expression));
+            },
+            Some(Token::Var) => {
+                self.consume_token();
+                
+                let variable_type = self.expect_type()?;
+                let variable_name = self.expect_identifer()?;
+                let initializer = self.parse_expression(0)?;
+
+                self.expect_token(&Token::Semicolon);
+
+                return Ok(Statement::VariableDeclare(variable_type, variable_name, initializer));
             },
             _ => {
                 return Err(ParserError::GenericError);
