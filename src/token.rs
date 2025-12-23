@@ -13,7 +13,9 @@ pub enum Token {
     Plus,
     Minus,
     Star,
-    Slash
+    Slash,
+    Var,
+    Equal,
 }
 
 pub fn print_token(token: &Token) {
@@ -59,6 +61,12 @@ pub fn print_token(token: &Token) {
         },
         Token::Slash => {
             println!("Slash");
+        },
+        Token::Var => {
+            println!("Variable");
+        },
+        Token::Equal => {
+            println!("Equal");
         }
     }
 }
