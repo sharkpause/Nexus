@@ -9,7 +9,11 @@ pub enum Token {
     RightParentheses,
     Function,
     IntType,
-    Identifier(String)
+    Identifier(String),
+    Plus,
+    Minus,
+    Star,
+    Slash
 }
 
 pub fn print_token(token: &Token) {
@@ -43,6 +47,18 @@ pub fn print_token(token: &Token) {
         }
         Token::Identifier(string) => {
             println!("Identifier {}", string);
+        },
+        Token::Plus => {
+            println!("Plus");
+        },
+        Token::Minus => {
+            println!("Minus");
+        },
+        Token::Star => {
+            println!("Star");
+        },
+        Token::Slash => {
+            println!("Slash");
         }
     }
 }
