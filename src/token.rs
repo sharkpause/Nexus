@@ -1,3 +1,4 @@
+#[derive(Clone)]
 pub enum Token {
     Return,
     IntLiteral(i64),

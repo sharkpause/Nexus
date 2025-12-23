@@ -47,9 +47,9 @@ fn main() {
         index: 0
     };
 
-    let statements = parser.parse_program().unwrap();
-    println!("\nStatements:\n{:?}", statements);
+    let program = parser.parse_program().unwrap();
+    println!("\nStatements:\n{:?}", program);
 
-    let output = codegen(statements);
+    let output = codegen(program);
     write_file(String::from("out.asm"), &output);
 }
