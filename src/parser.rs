@@ -21,7 +21,8 @@ pub enum Statement {
 #[derive(Debug)]
 pub enum Expression {
     IntLiteral(i64),
-    BinaryOp(Box<Expression>, Operator, Box<Expression>)
+    BinaryOp(Box<Expression>, Operator, Box<Expression>),
+    UnaryOp(Operator, Box<Expression>)
 }
 
 #[derive(Debug)]
@@ -36,6 +37,14 @@ pub enum Operator {
     Multiply,
     Divide
 }
+/*
+
+operator  | binding power
+----------+--------------
+* /       |  2
++ -       |  1
+
+*/
 
 #[derive(Debug)]
 pub struct Function {
@@ -130,7 +139,7 @@ impl Parser {
             Some(Token::Return) => {
                 self.consume_token();
 
-                let expression = self.parse_expression()?;
+                let expression = self.parse_expression(0)?;
 
                 match self.peek_token(0) {
                     Some(Token::Semicolon) => {
@@ -149,18 +158,86 @@ impl Parser {
         }
     }
 
-    pub fn parse_expression(&mut self) -> Result<Expression, ParserError> {
-        match self.peek_token(0) {
-            Some(Token::IntLiteral(number)) => {
-                let value = *number;
-                self.consume_token();
-                return Ok(Expression::IntLiteral(value));
-            }
+    fn binding_power(&self, token: &Token) -> Option<u8> {
+        return match token {
+            Token::Plus | Token::Minus => Some(1),
+            Token::Star | Token::Slash => Some(2),
+            _ => None
+        };
+    }
 
-            _ => {
-                return Err(ParserError::GenericError);
-            }
+    fn token_to_operator(&self, token: &Token) -> Option<Operator> {
+        return match token {
+            Token::Plus => Some(Operator::Add),
+            Token::Minus => Some(Operator::Subtract),
+            Token::Star => Some(Operator::Multiply),
+            Token::Slash => Some(Operator::Divide),
+            _ => None
         }
+    }
+
+    pub fn parse_expression(&mut self, min_bp: u8) -> Result<Expression, ParserError> {
+        let current_token =
+            self.peek_token(0).ok_or(ParserError::GenericError)?.clone();
+        
+        let mut lhs = match current_token {
+            Token::IntLiteral(number) => {
+                self.consume_token();
+                Expression::IntLiteral(number)
+            },
+            Token::LeftParentheses => {
+                self.consume_token();
+
+                let temp = self.parse_expression(0)?;
+                self.expect_token(&Token::RightParentheses);
+
+                temp
+            },
+            Token::Minus => {
+                self.consume_token();
+
+                let temp = self.parse_expression(3)?;
+
+                Expression::UnaryOp(Operator::Subtract, Box::new(temp))
+            },
+            _ => {
+                return Err(ParserError::UnexpectedToken);
+            }
+        };
+        
+        loop {
+            let operator =
+                self.peek_token(0).cloned().ok_or(ParserError::UnexpectedToken)?;
+            
+            let binding_power = self.binding_power(&operator);
+            
+            match binding_power {
+                Some(bp) => {
+                    if bp < min_bp {
+                        break;
+                    }
+
+                    self.consume_token();
+                    let rhs_min_bp = bp + 1;
+                    let rhs =
+                        self.parse_expression(rhs_min_bp)?;
+
+                    let operator =
+                        self.token_to_operator(&operator).ok_or(ParserError::UnexpectedToken)?;
+
+                    lhs = Expression::BinaryOp(
+                        Box::new(lhs),
+                        operator,
+                        Box::new(rhs)
+                    );
+                },
+                None => {
+                    break;
+                }
+            };
+        }
+
+        return Ok(lhs);
     }
 
     fn peek_token(&self, offset: usize) -> Option<&Token> {
