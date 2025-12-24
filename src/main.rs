@@ -8,7 +8,7 @@ use std::{env, fs, process::Command};
 use crate::token::print_token;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
-use crate::codegen::codegen;
+use crate::codegen::{CodeGenerator, CodegenError};
 
 fn read_file(path: &String) -> String {
     let source_code =
@@ -72,7 +72,9 @@ fn main() {
     let program = parser.parse_program().unwrap();
     println!("\nStatements:\n{:?}", program);
 
-    let output = codegen(program).unwrap();
+    let mut codegenerator = CodeGenerator::default();
+
+    let output = codegenerator.generate(program).unwrap();
     write_file(String::from("out.asm"), &output);
     assemble_and_link("out.asm", "out");
 }
