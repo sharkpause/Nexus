@@ -16,7 +16,7 @@ impl Default for CodeGenerator {
     fn default() -> Self {
         return Self {
             symbol_table: HashMap::new(),
-            stack_size: 0
+            stack_size: 8 // 8 so offset is always a multiple of 8
         };
     }
 }
