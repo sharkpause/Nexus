@@ -19,7 +19,8 @@ pub enum TopLevel {
 pub enum Statement {
     Return(Expression),
     VariableDeclare(Type, String, Expression),
-    VariableAssignment(String, Expression)
+    VariableAssignment(String, Expression),
+    Block(Vec<Statement>)
 }
 
 #[derive(Debug)]
@@ -55,7 +56,7 @@ operator  | binding power
 pub struct Function {
     pub name: String,
     pub return_type: Type,
-    pub body: Vec<Statement>
+    pub body: Statement
 }
 
 pub struct Parser {
@@ -148,17 +149,22 @@ impl Parser {
 
         self.expect_token(&Token::LeftParentheses)?;
         self.expect_token(&Token::RightParentheses)?;
-        self.expect_token(&Token::LeftBrace)?;
-
-        let function_statements = self.parse_statements()?;
-
-        self.expect_token(&Token::RightBrace)?;
 
         return Ok(Function {
             name: function_name,
             return_type: return_type,
-            body: function_statements
+            body: self.parse_block()?
         });
+    }
+
+    pub fn parse_block(&mut self) -> Result<Statement, ParserError> {
+        self.expect_token(&Token::LeftBrace)?;
+
+        let statements = self.parse_statements()?;
+
+        self.expect_token(&Token::RightBrace)?;
+
+        return Ok(Statement::Block(statements));
     }
 
     pub fn parse_statements(&mut self) -> Result<Vec<Statement>, ParserError> {
@@ -168,7 +174,6 @@ impl Parser {
             if matches!(token, Token::RightBrace) {
                 break;
             }
-
             let statement = self.parse_statement()?;
             statements.push(statement);
         }
@@ -178,7 +183,11 @@ impl Parser {
 
     pub fn parse_statement(&mut self) -> Result<Statement, ParserError> {
         match self.peek_token(0) {
+            Some(Token::LeftBrace) => {
+                return self.parse_block();
+            },
             Some(Token::Return) => {
+                println!("return");
                 self.consume_token();
 
                 let expression = self.parse_expression(0)?;
@@ -188,8 +197,8 @@ impl Parser {
                 return Ok(Statement::Return(expression));
             },
             Some(Token::Var) => {
+                println!("var");
                 self.consume_token();
-                
                 let variable_type = self.expect_type()?;
                 let variable_name = self.expect_identifer()?;
                 self.expect_token(&Token::Equal);
@@ -200,8 +209,9 @@ impl Parser {
                 return Ok(Statement::VariableDeclare(variable_type, variable_name, initializer));
             },
             Some(Token::Identifier(name)) => {
+                println!("iden");
                 let var_name = name.clone();
-                
+
                 self.consume_token();
 
                 self.expect_token(&Token::Equal)?;

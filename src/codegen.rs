@@ -1,4 +1,4 @@
-use std::{arch::x86_64::_mm256_conflict_epi32, collections::HashMap};
+use std::{arch::x86_64::_mm256_conflict_epi32, collections::HashMap, os::linux::raw::stat};
 
 use crate::parser::{Expression, Operator, Statement, TopLevel, Type};
 
@@ -8,20 +8,38 @@ pub enum CodegenError {
 }
 
 pub struct CodeGenerator {
-    symbol_table: HashMap<String, i64>,
+    symbol_table: Vec<HashMap<String, i64>>,
     stack_size: i64
 }
 
 impl Default for CodeGenerator {
     fn default() -> Self {
         return Self {
-            symbol_table: HashMap::new(),
+            symbol_table: Vec::new(),
             stack_size: 8 // 8 so offset is always a multiple of 8
         };
     }
 }
 
 impl CodeGenerator {
+    pub fn enter_scope(&mut self) {
+        self.symbol_table.push(HashMap::new());
+    }
+    
+    pub fn exit_scope(&mut self) {
+        self.symbol_table.pop().expect("Scope underflow");
+    }
+
+    pub fn lookup_variable(&self, name: &str) -> Result<i64, CodegenError> {
+        for scope in self.symbol_table.iter().rev() {
+            if let Some(offset) = scope.get(name) {
+                return Ok(*offset);
+            }
+        }
+
+        // CodegenError::VariableNotExist
+        return Err(CodegenError::GenericError);
+    }
 
     pub fn generate(&mut self, program: Vec<TopLevel>) -> Result<String, CodegenError> {
         let mut output = String::from(
@@ -36,23 +54,18 @@ impl CodeGenerator {
         for toplevel in program {
             match toplevel {
                 TopLevel::Function(function) => {
-                    output.push_str(&format!("{}:\n", function.name));
+                    self.stack_size = 8;
+                    self.symbol_table.clear();
                     
-                    let mut statements_code = String::new();
-                    let mut memory_to_reserve = 0;
+                    output.push_str(&format!("{}:\n", function.name));
 
-                    for statement in function.body {
-                        let statement_code = self.generate_statement(statement)?;
-
-                        statements_code.push_str(&statement_code.0);
-                        memory_to_reserve += statement_code.1;
-                    }
+                    let statements_code = self.generate_statement(function.body)?;
 
                     output.push_str(&format!(
                         "\tpush rbp\n\
                         \tmov rbp, rsp\n\
                         \tsub rsp, {}\n",
-                        memory_to_reserve));
+                        self.stack_size));
                     output.push_str(&statements_code);
                     output.push_str(
                         "\tmov rsp, rbp\n\
@@ -63,7 +76,7 @@ impl CodeGenerator {
                 TopLevel::Statement(statement) => {
                     let statement_code = self.generate_statement(statement)?;
 
-                    output.push_str(&statement_code.0);
+                    output.push_str(&statement_code);
                 }
             }
         }
@@ -71,40 +84,54 @@ impl CodeGenerator {
         return Ok(output);
     }
 
-    fn generate_statement(&mut self, statement: Statement) -> Result<(String, i64), CodegenError> {
+    fn generate_statement(&mut self, statement: Statement) -> Result<String, CodegenError> {
         let mut output = String::new();
 
         match statement {
+            Statement::Block(statements) => {
+                self.enter_scope();
+
+                let mut statements_code = String::new();
+                
+                for statement in statements {
+                    let statement_code = self.generate_statement(statement)?;
+                    
+                    statements_code.push_str(&statement_code);
+                }
+
+                self.exit_scope();
+                return Ok(statements_code);
+            },
             Statement::Return(expression) => {
                 output.push_str(&self.generate_expression(expression)?);
             
-                return Ok((output, 0));
+                return Ok(output);
             },
             Statement::VariableDeclare(var_type, var_name, expression) => {
                 let stack_offset;
-                let mut allocated_memory = 0;
                 
                 match var_type {
                     Type::Int => {
                         self.stack_size += 8;
                         stack_offset = self.stack_size - 8;
-                        allocated_memory += 8;
                     }
                 }
-                self.symbol_table.insert(format!("{}", var_name), stack_offset);
+
+                let current_scope = self.symbol_table.last_mut().expect("No active scope");
+
+                current_scope.insert(format!("{}", var_name), stack_offset);
 
                 output.push_str(&self.generate_expression(expression)?);
                 output.push_str(&format!("    mov [rbp - {}], rax\n", stack_offset));
-                return Ok((output, allocated_memory));
+                return Ok(output);
             },
             Statement::VariableAssignment(name, expression) => {
-                let offset = // CodegenError::VariableNotExist
-                    self.symbol_table.get(&name).ok_or(CodegenError::GenericError)?;
+                let offset = self.lookup_variable(&name)?;
             
                 output.push_str(&self.generate_expression(expression)?);
                 output.push_str(&format!("    mov [rbp - {}], rax\n", offset));
 
-                return Ok((output, 0));
+                return Ok(output);
             },
             _ => {
                 return Err(CodegenError::GenericError);
@@ -117,8 +144,8 @@ impl CodeGenerator {
 
         match expression {
             Expression::Variable(name) => {
-                let offset = // CodegenError::VariableNotExist
-                    self.symbol_table.get(&name).ok_or(CodegenError::GenericError)?;
+                let offset = self.lookup_variable(&name)?;
+
                 output.push_str(&format!("    mov rax, [rbp - {}]\n", offset));
             },
             Expression::IntLiteral(value) => {

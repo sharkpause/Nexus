@@ -1,5 +1,6 @@
 function int entry() {
-    var int x = 10;
-    x = 50;
-    return x;
+    {
+    var int x = 1;
+}
+x = 2;
 }
