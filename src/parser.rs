@@ -1,12 +1,11 @@
-use std::env::var;
-
 use crate::token::Token;
 
 #[derive(Debug)]
 pub enum ParserError {
     EndOfInput,
     GenericError,
-    UnexpectedToken
+    UnexpectedToken,
+    UnexpectedEndOfInput
 }
 
 #[derive(Debug)]
@@ -192,7 +191,7 @@ impl Parser {
 
                 let expression = self.parse_expression(0)?;
 
-                self.expect_token(&Token::Semicolon);
+                self.expect_token(&Token::Semicolon)?;
 
                 return Ok(Statement::Return(expression));
             },
@@ -201,10 +200,10 @@ impl Parser {
                 self.consume_token();
                 let variable_type = self.expect_type()?;
                 let variable_name = self.expect_identifer()?;
-                self.expect_token(&Token::Equal);
+                self.expect_token(&Token::Equal)?;
                 let initializer = self.parse_expression(0)?;
 
-                self.expect_token(&Token::Semicolon);
+                self.expect_token(&Token::Semicolon)?;
 
                 return Ok(Statement::VariableDeclare(variable_type, variable_name, initializer));
             },
@@ -228,7 +227,7 @@ impl Parser {
 
     pub fn parse_expression(&mut self, min_bp: u8) -> Result<Expression, ParserError> {
         let current_token =
-            self.peek_token(0).ok_or(ParserError::GenericError)?.clone();
+            self.peek_token(0).ok_or(ParserError::UnexpectedEndOfInput)?.clone();
         
         let mut lhs = match current_token {
             Token::Identifier(name) => {
@@ -243,7 +242,7 @@ impl Parser {
                 self.consume_token();
 
                 let temp = self.parse_expression(0)?;
-                self.expect_token(&Token::RightParentheses);
+                self.expect_token(&Token::RightParentheses)?;
 
                 temp
             },

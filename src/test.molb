@@ -1,6 +1,3 @@
-function int entry() {
-    {
-    var int x = 1;
-}
-x = 2;
+function int entry () {
+    #
 }

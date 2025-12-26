@@ -1,4 +1,4 @@
-use std::{arch::x86_64::_mm256_conflict_epi32, collections::HashMap, os::linux::raw::stat};
+use std::{ collections::HashMap };
 
 use crate::parser::{Expression, Operator, Statement, TopLevel, Type};
 

@@ -8,7 +8,7 @@ use std::{env, fs, process::Command};
 use crate::token::print_token;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
-use crate::codegen::{CodeGenerator, CodegenError};
+use crate::codegen::{ CodeGenerator };
 
 fn read_file(path: &String) -> String {
     let source_code =
