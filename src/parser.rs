@@ -1,3 +1,5 @@
+use std::env::var;
+
 use crate::token::Token;
 
 #[derive(Debug)]
@@ -16,7 +18,8 @@ pub enum TopLevel {
 #[derive(Debug)]
 pub enum Statement {
     Return(Expression),
-    VariableDeclare(Type, String, Expression)
+    VariableDeclare(Type, String, Expression),
+    VariableAssignment(String, Expression)
 }
 
 #[derive(Debug)]
@@ -195,6 +198,17 @@ impl Parser {
                 self.expect_token(&Token::Semicolon);
 
                 return Ok(Statement::VariableDeclare(variable_type, variable_name, initializer));
+            },
+            Some(Token::Identifier(name)) => {
+                let var_name = name.clone();
+                
+                self.consume_token();
+
+                self.expect_token(&Token::Equal)?;
+                let expression = self.parse_expression(0)?;
+                self.expect_token(&Token::Semicolon)?;
+
+                return Ok(Statement::VariableAssignment(String::from(var_name), expression));
             },
             _ => {
                 return Err(ParserError::GenericError);

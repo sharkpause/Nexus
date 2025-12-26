@@ -1,4 +1,5 @@
 function int entry() {
-    var int x = 5;
-    return x * x;
+    var int x = 10;
+    x = 50;
+    return x;
 }

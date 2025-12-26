@@ -97,6 +97,15 @@ impl CodeGenerator {
                 output.push_str(&format!("    mov [rbp - {}], rax\n", stack_offset));
                 return Ok((output, allocated_memory));
             },
+            Statement::VariableAssignment(name, expression) => {
+                let offset = // CodegenError::VariableNotExist
+                    self.symbol_table.get(&name).ok_or(CodegenError::GenericError)?;
+            
+                output.push_str(&self.generate_expression(expression)?);
+                output.push_str(&format!("    mov [rbp - {}], rax\n", offset));
+
+                return Ok((output, 0));
+            },
             _ => {
                 return Err(CodegenError::GenericError);
             }
