@@ -4,7 +4,8 @@ use crate::parser::{Expression, Operator, Statement, TopLevel, Type};
 
 #[derive(Debug)]
 pub enum CodegenError {
-    GenericError
+    GenericError,
+    UndefinedVariable(String)
 }
 
 pub struct CodeGenerator {
@@ -36,9 +37,8 @@ impl CodeGenerator {
                 return Ok(*offset);
             }
         }
-
-        // CodegenError::VariableNotExist
-        return Err(CodegenError::GenericError);
+        
+        return Err(CodegenError::UndefinedVariable(String::from(name)));
     }
 
     pub fn generate(&mut self, program: Vec<TopLevel>) -> Result<String, CodegenError> {
