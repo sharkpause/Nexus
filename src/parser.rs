@@ -20,7 +20,8 @@ pub enum Statement {
     Return(Expression),
     VariableDeclare(Type, String, Expression),
     VariableAssignment(String, Expression),
-    Block(Vec<Statement>)
+    Block(Vec<Statement>),
+    Expression(Expression)
 }
 
 #[derive(Debug, Clone)]
@@ -216,15 +217,22 @@ impl Parser {
                 return Ok(Statement::VariableDeclare(variable_type, variable_name, initializer));
             },
             Some(Token::Identifier(name)) => {
-                let var_name = name.clone();
+                let name = name.clone();
 
-                self.consume_token();
+                if matches!(self.peek_token(1), Some(Token::Equal)) {
+                    self.consume_token(); // name
+                    self.consume_token(); // =
 
-                self.expect_token(&Token::Equal)?;
-                let expression = self.parse_expression(0)?;
-                self.expect_token(&Token::Semicolon)?;
+                    let expression = self.parse_expression(0)?;
+                    self.expect_token(&Token::Semicolon)?;
 
-                return Ok(Statement::VariableAssignment(String::from(var_name), expression));
+                    return Ok(Statement::VariableAssignment(name.to_string(), expression));
+                } else {
+                    let expression = self.parse_expression(0)?;
+                    self.expect_token(&Token::Semicolon)?;
+
+                    return Ok(Statement::Expression(expression));
+                }
             },
             _ => {
                 return Err(ParserError::GenericError);
@@ -235,11 +243,12 @@ impl Parser {
     pub fn parse_expression(&mut self, min_bp: u8) -> Result<Expression, ParserError> {
         let current_token =
             self.peek_token(0).ok_or(ParserError::UnexpectedEndOfInput)?.clone();
-        
+
         let mut lhs = match current_token {
             Token::Identifier(name) => {
                 self.consume_token();
 
+                // parse function arguments
                 if matches!(self.peek_token(0), Some(Token::LeftParentheses)) {
                     self.consume_token();
                     

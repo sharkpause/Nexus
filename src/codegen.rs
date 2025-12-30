@@ -133,6 +133,11 @@ impl CodeGenerator {
 
                 return Ok(output);
             },
+            Statement::Expression(expression) => {
+                let output = self.generate_expression(&expression)?;
+
+                return Ok(output);
+            }
             _ => {
                 return Err(CodegenError::GenericError);
             }
@@ -169,7 +174,7 @@ impl CodeGenerator {
                     }
                 };
 
-                output.push_str(&format!("call {}", function_name));
+                output.push_str(&format!("\tcall {}\n", function_name));
             },
             Expression::Variable(name) => {
                 let offset = self.lookup_variable(&name)?;
