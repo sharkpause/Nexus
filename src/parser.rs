@@ -4,8 +4,9 @@ use crate::token::Token;
 pub enum ParserError {
     EndOfInput,
     GenericError,
-    UnexpectedToken,
-    UnexpectedEndOfInput
+    UnexpectedToken(Token),
+    UnexpectedEndOfInput,
+    UnexpectedType(Type)
 }
 
 #[derive(Debug)]
@@ -22,13 +23,13 @@ pub enum Statement {
     Block(Vec<Statement>)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expression {
     Variable(String),
     IntLiteral(i64),
     BinaryOperation(Box<Expression>, Operator, Box<Expression>),
     UnaryOperation(Operator, Box<Expression>),
-    FunctionCall(String, Vec<Expression>)
+    FunctionCall(Box<Expression>, Vec<Expression>)
 }
 
 #[derive(Debug)]
@@ -36,7 +37,7 @@ pub enum Type {
     Int,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Operator {
     Add,
     Subtract,
@@ -67,12 +68,15 @@ pub struct Parser {
 impl Parser {
     pub fn expect_token(&mut self, expected: &Token) -> Result<(), ParserError> {
         match self.peek_token(0) {
-            Some(expected) => {
+            Some(token) if token == expected  => {
                 self.consume_token();
                 return Ok(());
             },
-            _ => {
-                return Err(ParserError::UnexpectedToken);
+            Some(token) => {
+                return Err(ParserError::UnexpectedToken(token.clone()));
+            },
+            None => {
+                return Err(ParserError::UnexpectedEndOfInput);
             }
         }
     }
@@ -83,8 +87,11 @@ impl Parser {
                 self.consume_token();
                 return Ok(Type::Int);
             },
-            _ => {
-                return Err(ParserError::UnexpectedToken);
+            Some(_type) => {
+                return Err(ParserError::UnexpectedToken(_type.clone()));
+            },
+            None => {
+                return Err(ParserError::UnexpectedEndOfInput);
             }
         }
     }
@@ -97,8 +104,11 @@ impl Parser {
 
                 return Ok(temp);
             },
-            _ => {
-                return Err(ParserError::UnexpectedToken);
+            Some(token) => {
+                return Err(ParserError::UnexpectedToken(token.clone()));
+            },
+            None => {
+                return Err(ParserError::UnexpectedEndOfInput);
             }
         }
     }
@@ -159,7 +169,6 @@ impl Parser {
 
     pub fn parse_block(&mut self) -> Result<Statement, ParserError> {
         self.expect_token(&Token::LeftBrace)?;
-
         let statements = self.parse_statements()?;
 
         self.expect_token(&Token::RightBrace)?;
@@ -187,7 +196,6 @@ impl Parser {
                 return self.parse_block();
             },
             Some(Token::Return) => {
-                println!("return");
                 self.consume_token();
 
                 let expression = self.parse_expression(0)?;
@@ -197,7 +205,6 @@ impl Parser {
                 return Ok(Statement::Return(expression));
             },
             Some(Token::Var) => {
-                println!("var");
                 self.consume_token();
                 let variable_type = self.expect_type()?;
                 let variable_name = self.expect_identifer()?;
@@ -209,7 +216,6 @@ impl Parser {
                 return Ok(Statement::VariableDeclare(variable_type, variable_name, initializer));
             },
             Some(Token::Identifier(name)) => {
-                println!("iden");
                 let var_name = name.clone();
 
                 self.consume_token();
@@ -233,7 +239,32 @@ impl Parser {
         let mut lhs = match current_token {
             Token::Identifier(name) => {
                 self.consume_token();
-                Expression::Variable(name)
+
+                if matches!(self.peek_token(0), Some(Token::LeftParentheses)) {
+                    self.consume_token();
+                    
+                    let mut arguments = Vec::new();
+                    
+                    if !matches!(self.peek_token(0), Some(Token::RightParentheses)) {
+                        loop {
+                            arguments.push(self.parse_expression(0)?);
+                            if matches!(self.peek_token(0), Some(Token::Comma)) {
+                                self.consume_token();
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+
+                    self.expect_token(&Token::RightParentheses)?;
+                    
+                    Expression::FunctionCall(
+                        Box::new(Expression::Variable(name)),
+                        arguments
+                    )
+                } else {
+                    Expression::Variable(name)
+                }
             },
             Token::IntLiteral(number) => {
                 self.consume_token();
@@ -255,13 +286,13 @@ impl Parser {
                 Expression::UnaryOperation(Operator::Subtract, Box::new(temp))
             },
             _ => {
-                return Err(ParserError::UnexpectedToken);
+                return Err(ParserError::UnexpectedToken(current_token));
             }
         };
         
         loop {
             let operator =
-                self.peek_token(0).cloned().ok_or(ParserError::UnexpectedToken)?;
+                self.peek_token(0).cloned().ok_or(ParserError::UnexpectedEndOfInput)?;
             
             let binding_power = self.binding_power(&operator);
             
@@ -277,7 +308,7 @@ impl Parser {
                         self.parse_expression(rhs_min_bp)?;
 
                     let operator =
-                        self.token_to_operator(&operator).ok_or(ParserError::UnexpectedToken)?;
+                        self.token_to_operator(&operator).ok_or(ParserError::UnexpectedEndOfInput)?;
 
                     lhs = Expression::BinaryOperation(
                         Box::new(lhs),

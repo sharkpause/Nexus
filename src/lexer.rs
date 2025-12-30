@@ -48,6 +48,7 @@ impl Lexer {
             '*' => Token::Star,
             '/' => Token::Slash,
             '=' => Token::Equal,
+            ',' => Token::Comma,
             _ => return None,
         };
 

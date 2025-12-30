@@ -103,7 +103,7 @@ impl CodeGenerator {
                 return Ok(statements_code);
             },
             Statement::Return(expression) => {
-                output.push_str(&self.generate_expression(expression)?);
+                output.push_str(&self.generate_expression(&expression)?);
             
                 return Ok(output);
             },
@@ -121,14 +121,14 @@ impl CodeGenerator {
 
                 current_scope.insert(format!("{}", var_name), stack_offset);
 
-                output.push_str(&self.generate_expression(expression)?);
+                output.push_str(&self.generate_expression(&expression)?);
                 output.push_str(&format!("    mov [rbp - {}], rax\n", stack_offset));
                 return Ok(output);
             },
             Statement::VariableAssignment(name, expression) => {
                 let offset = self.lookup_variable(&name)?;
             
-                output.push_str(&self.generate_expression(expression)?);
+                output.push_str(&self.generate_expression(&expression)?);
                 output.push_str(&format!("    mov [rbp - {}], rax\n", offset));
 
                 return Ok(output);
@@ -139,10 +139,38 @@ impl CodeGenerator {
         }
     }
 
-    fn generate_expression(&self, expression: Expression) -> Result<String, CodegenError> {
+    fn generate_expression(&self, expression: &Expression) -> Result<String, CodegenError> {
         let mut output = String::new();
 
         match expression {
+            Expression::FunctionCall(name, arguments) => {
+                for (index, argument) in arguments.iter().enumerate() {
+                    self.generate_expression(argument)?;
+
+                    let register = match index {
+                        0 => "rdi",
+                        1 => "rsi",
+                        2 => "rdx",
+                        3 => "rcx",
+                        4 => "r8",
+                        5 => "r9",
+                        _ => unimplemented!("Stack arguents not supported yet"),
+                    };
+
+                    output.push_str(&format!("mov {}, rax", register));
+                }
+
+                let function_name = match &**name {
+                    Expression::Variable(name) => {
+                        name
+                    },
+                    _ => {
+                        return Err(CodegenError::GenericError);
+                    }
+                };
+
+                output.push_str(&format!("call {}", function_name));
+            },
             Expression::Variable(name) => {
                 let offset = self.lookup_variable(&name)?;
 
@@ -152,15 +180,15 @@ impl CodeGenerator {
                 output.push_str(&format!("    mov rax, {}\n", value));
             },
             Expression::UnaryOperation(operator, inner) => {
-                output.push_str(&self.generate_expression(*inner)?);
+                output.push_str(&self.generate_expression(inner)?);
                 output.push_str("    neg rax\n");
             },
             Expression::BinaryOperation(lhs,operator ,rhs ) => {
-                let left = self.generate_expression(*lhs)?;
+                let left = self.generate_expression(lhs)?;
                 output.push_str(&left);
                 output.push_str("    push rax\n");
 
-                let right = self.generate_expression(*rhs)?;
+                let right = self.generate_expression(rhs)?;
                 output.push_str(&right);
                 output.push_str("    pop rbx\n");
 

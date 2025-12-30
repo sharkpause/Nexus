@@ -1,4 +1,4 @@
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Token {
     Return,
     IntLiteral(i64),
@@ -16,6 +16,7 @@ pub enum Token {
     Slash,
     Var,
     Equal,
+    Comma
 }
 
 pub fn print_token(token: &Token) {
@@ -67,6 +68,9 @@ pub fn print_token(token: &Token) {
         },
         Token::Equal => {
             println!("Equal");
+        },
+        Token::Comma => {
+            println!("Comma");
         }
     }
 }
