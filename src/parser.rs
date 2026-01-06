@@ -21,7 +21,9 @@ pub enum Statement {
     VariableDeclare(Type, String, Expression),
     VariableAssignment(String, Expression),
     Block(Vec<Statement>),
-    Expression(Expression)
+    Expression(Expression),
+    Else(Box<Statement>),
+    If(Expression, Box<Statement>, Option<Box<Statement>>)
 }
 
 #[derive(Debug, Clone)]
