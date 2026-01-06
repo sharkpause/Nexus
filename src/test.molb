@@ -9,7 +9,15 @@ function int sub_wrapper(int x, int y) {
 function int entry() {
     var int x = 20;
     var int y = 15;
-    var int z = sub_wrapper(x, y);
+    var int z = 0;
+
+    if(x == 20) {
+        z = sub_wrapper(x, y);
+    } else if(x == 10) {
+        z = 99;
+    } else {
+        z = -10;
+    }
 
     return z;
 }

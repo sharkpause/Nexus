@@ -57,6 +57,70 @@ impl Lexer {
         return Some(token);
     }
 
+    fn double_char_token(&mut self) -> Option<Token> {
+        match self.peek_char(0)? {
+            '=' => {
+                if self.peek_char(1)? == '=' {
+                    self.consume_char();
+                    self.consume_char();
+                    Some(Token::DoubleEqual)
+                } else {
+                    None
+                }
+            },
+            '!' => {
+                if self.peek_char(1)? == '=' {
+                    self.consume_char();
+                    self.consume_char();
+                    Some(Token::NotEqual)
+                } else {
+                    Some(Token::Not)
+                }
+            },
+            '<' => {
+                if self.peek_char(1)? == '=' {
+                    self.consume_char();
+                    self.consume_char();
+                    Some(Token::LessEqualThan)
+                } else if self.peek_char(1)? == '>' {
+                    self.consume_char();
+                    self.consume_char();
+                    Some(Token::LessGreaterThan)
+                } else {
+                    None
+                }
+            },
+            '>' => {
+                if self.peek_char(1)? == '=' {
+                    self.consume_char();
+                    self.consume_char();
+                    Some(Token::GreaterThan) // or GreaterEqual?
+                } else {
+                    None
+                }
+            },
+            '&' => {
+                if self.peek_char(1)? == '&' {
+                    self.consume_char();
+                    self.consume_char();
+                    Some(Token::And)
+                } else {
+                    None
+                }
+            },
+            '|' => {
+                if self.peek_char(1)? == '|' {
+                    self.consume_char();
+                    self.consume_char();
+                    Some(Token::Or)
+                } else {
+                    None
+                }
+            },
+            _ => None,
+        }
+    }
+
     pub fn next_token(&mut self) -> Result<Token, LexerError> {
         self.skip_whitespace();
 
@@ -109,12 +173,18 @@ impl Lexer {
                 "function" => Ok(Token::Function),
                 "int" => Ok(Token::IntType),
                 "var" => Ok(Token::Var),
-                _ => Ok(Token::Identifier(token))
+                "if" => Ok(Token::If),
+                "else" => Ok(Token::Else),
+                "while" => Ok(Token::While),
+                _ => Ok(Token::Identifier(token)),
             }
         } else {
-            if let Some(token) = self.single_char_token() {
+            if let Some(token) = self.double_char_token() {
+                return Ok(token);
+            } else if let Some(token) = self.single_char_token() {
                 return Ok(token);
             }
+
             return Err(LexerError::UnknownToken(current_char));
         }
     }
