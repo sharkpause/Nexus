@@ -16,61 +16,51 @@ pub enum Token {
     Slash,
     Var,
     Equal,
-    Comma
+    Comma,
+    If,
+    Else,
+    While,
+    DoubleEqual,
+    NotEqual,
+    LessThan,
+    GreaterThan,
+    LessEqualThan,
+    LessGreaterThan,
+    And,
+    Or,
+    Not
 }
 
 pub fn print_token(token: &Token) {
     match token {
-        Token::Return => {
-            println!("Return");
-        },
-        Token::IntLiteral(number) => {
-            println!("integer {}", number);
-        },
-        Token::Semicolon => {
-            println!("Semicolon");
-        },
-        Token::LeftBrace => {
-            println!("Left brace");
-        },
-        Token::RightBrace => {
-            println!("Right brace");
-        },
-        Token::LeftParentheses => {
-            println!("Left parentheses");
-        },
-        Token::RightParentheses => {
-            println!("Right parentheses");
-        },
-        Token::Function => {
-            println!("Function keyword");
-        },
-        Token::IntType => {
-            println!("Integer type");
-        }
-        Token::Identifier(string) => {
-            println!("Identifier {}", string);
-        },
-        Token::Plus => {
-            println!("Plus");
-        },
-        Token::Minus => {
-            println!("Minus");
-        },
-        Token::Star => {
-            println!("Star");
-        },
-        Token::Slash => {
-            println!("Slash");
-        },
-        Token::Var => {
-            println!("Variable");
-        },
-        Token::Equal => {
-            println!("Equal");
-        },
-        Token::Comma => {
-            println!("Comma");
-        }
+        Token::Return => println!("Return"),
+        Token::IntLiteral(n) => println!("integer {}", n),
+        Token::Semicolon => println!("Semicolon"),
+        Token::LeftBrace => println!("Left brace"),
+        Token::RightBrace => println!("Right brace"),
+        Token::LeftParentheses => println!("Left parentheses"),
+        Token::RightParentheses => println!("Right parentheses"),
+        Token::Function => println!("Function keyword"),
+        Token::IntType => println!("Integer type"),
+        Token::Identifier(s) => println!("Identifier {}", s),
+        Token::Plus => println!("Plus"),
+        Token::Minus => println!("Minus"),
+        Token::Star => println!("Star"),
+        Token::Slash => println!("Slash"),
+        Token::Var => println!("Variable"),
+        Token::Equal => println!("Equal"),
+        Token::Comma => println!("Comma"),
+        Token::If => println!("If"),
+        Token::Else => println!("Else"),
+        Token::While => println!("While"),
+        Token::DoubleEqual => println!("DoubleEqual"),
+        Token::NotEqual => println!("NotEqual"),
+        Token::LessThan => println!("LessThan"),
+        Token::GreaterThan => println!("GreaterThan"),
+        Token::LessEqualThan => println!("LessEqualThan"),
+        Token::LessGreaterThan => println!("LessGreaterThan"),
+        Token::And => println!("And"),
+        Token::Or => println!("Or"),
+        Token::Not => println!("Not"),
     }
 }
