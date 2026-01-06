@@ -1,7 +1,15 @@
-function int add(int x) {
-    return x;
+function int sub(int x, int y) {
+    return x - y;
+}
+
+function int sub_wrapper(int x, int y) {
+    return sub(x, y);
 }
 
 function int entry() {
-    return add(1);
+    var int x = 20;
+    var int y = 15;
+    var int z = sub_wrapper(x, y);
+
+    return z;
 }

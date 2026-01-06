@@ -56,22 +56,56 @@ impl CodeGenerator {
                 TopLevel::Function(function) => {
                     self.stack_size = 8;
                     self.symbol_table.clear();
+
+                    self.enter_scope();
                     
                     output.push_str(&format!("{}:\n", function.name));
 
-                    let statements_code = self.generate_statement(function.body)?;
+                    let mut parameter_code = String::new();
+                    if function.parameters.len() > 0 {
+                        for (index, (type_, name)) in function.parameters.iter().enumerate() {
+                            self.stack_size += 8;
+                            let offset = self.stack_size - 8;
 
+                            let current_scope = self.symbol_table.last_mut().expect("No active scope");
+
+                            current_scope.insert(name.clone(), offset);
+
+                            let register = match index {
+                                0 => "rdi",
+                                1 => "rsi",
+                                2 => "rdx",
+                                3 => "rcx",
+                                4 => "r8",
+                                5 => "r9",
+                                _ => unimplemented!("Stack arguments not supported"),
+                            };
+
+                            parameter_code.push_str(&format!("\tmov [rbp - {}], {}\n", offset, register));
+                        }
+                    }
+
+                    let statements_code = self.generate_function_body(function.body)?;
+
+                    // this ordering may look confusing but it's needed so self.stack_size
+                    // is the correct amount of bytes
                     output.push_str(&format!(
                         "\tpush rbp\n\
                         \tmov rbp, rsp\n\
                         \tsub rsp, {}\n",
                         self.stack_size));
+
+                    output.push_str(&parameter_code);
+
                     output.push_str(&statements_code);
+
                     output.push_str(
                         "\tmov rsp, rbp\n\
                         \tpop rbp\n\
                         \tret\n"
                     );
+
+                    self.exit_scope();
                 },
                 TopLevel::Statement(statement) => {
                     let statement_code = self.generate_statement(statement)?;
@@ -82,6 +116,24 @@ impl CodeGenerator {
         }
 
         return Ok(output);
+    }
+
+    fn generate_function_body(&mut self, statement: Statement) -> Result<String, CodegenError> {
+        match statement {
+            Statement::Block(statements) => {
+                let mut statements_code = String::new();
+                
+                for statement in statements {
+                    let statement_code = self.generate_statement(statement)?;
+                    statements_code.push_str(&statement_code);
+                }
+
+                return Ok(statements_code);
+            },
+            _ => {
+                return Err(CodegenError::GenericError)
+            }
+        }
     }
 
     fn generate_statement(&mut self, statement: Statement) -> Result<String, CodegenError> {
@@ -95,7 +147,6 @@ impl CodeGenerator {
                 
                 for statement in statements {
                     let statement_code = self.generate_statement(statement)?;
-                    
                     statements_code.push_str(&statement_code);
                 }
 
@@ -150,7 +201,7 @@ impl CodeGenerator {
         match expression {
             Expression::FunctionCall(name, arguments) => {
                 for (index, argument) in arguments.iter().enumerate() {
-                    self.generate_expression(argument)?;
+                    output.push_str(&self.generate_expression(argument)?);
 
                     let register = match index {
                         0 => "rdi",
@@ -159,7 +210,7 @@ impl CodeGenerator {
                         3 => "rcx",
                         4 => "r8",
                         5 => "r9",
-                        _ => unimplemented!("Stack arguents not supported yet"),
+                        _ => unimplemented!("Stack arguments are not supported yet"),
                     };
 
                     output.push_str(&format!("\tmov {}, rax\n", register));
@@ -195,25 +246,25 @@ impl CodeGenerator {
 
                 let right = self.generate_expression(rhs)?;
                 output.push_str(&right);
-                output.push_str("    pop rbx\n");
+                output.push_str("    pop rcx\n");
 
                 match operator {
                     Operator::Add => {
-                        output.push_str("    add rbx, rax\n");
-                        output.push_str("    mov rax, rbx\n");
+                        output.push_str("    add rcx, rax\n");
+                        output.push_str("    mov rax, rcx\n");
                     },
                     Operator::Subtract => {
-                        output.push_str("    sub rbx, rax\n");
-                        output.push_str("    mov rax, rbx\n");
+                        output.push_str("    sub rcx, rax\n");
+                        output.push_str("    mov rax, rcx\n");
                     },
                     Operator::Multiply => {
-                        output.push_str("    imul rbx, rax\n");
-                        output.push_str("    mov rax, rbx\n");
+                        output.push_str("    imul rcx, rax\n");
+                        output.push_str("    mov rax, rcx\n");
                     },
                     Operator::Divide => {
-                        output.push_str("    xchg rax, rbx\n");
+                        output.push_str("    xchg rax, rcx\n");
                         output.push_str("    xor rdx, rdx\n");
-                        output.push_str("    idiv rbx\n");
+                        output.push_str("    idiv rcx\n");
                     }
                 }
             }
