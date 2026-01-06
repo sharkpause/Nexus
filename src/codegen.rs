@@ -173,18 +173,23 @@ impl CodeGenerator {
                 current_scope.insert(format!("{}", var_name), stack_offset);
 
                 output.push_str(&self.generate_expression(&expression)?);
-                output.push_str(&format!("    mov [rbp - {}], rax\n", stack_offset));
+                output.push_str(&format!("\tmov [rbp - {}], rax\n", stack_offset));
                 return Ok(output);
             },
             Statement::VariableAssignment(name, expression) => {
                 let offset = self.lookup_variable(&name)?;
             
                 output.push_str(&self.generate_expression(&expression)?);
-                output.push_str(&format!("    mov [rbp - {}], rax\n", offset));
+                output.push_str(&format!("\tmov [rbp - {}], rax\n", offset));
 
                 return Ok(output);
             },
             Statement::Expression(expression) => {
+                let output = self.generate_expression(&expression)?;
+
+                return Ok(output);
+            },
+            Statement::If(expression, body, else_) => {
                 let output = self.generate_expression(&expression)?;
 
                 return Ok(output);
@@ -230,42 +235,47 @@ impl CodeGenerator {
             Expression::Variable(name) => {
                 let offset = self.lookup_variable(&name)?;
 
-                output.push_str(&format!("    mov rax, [rbp - {}]\n", offset));
+                output.push_str(&format!("\tmov rax, [rbp - {}]\n", offset));
             },
             Expression::IntLiteral(value) => {
-                output.push_str(&format!("    mov rax, {}\n", value));
+                output.push_str(&format!("\tmov rax, {}\n", value));
             },
             Expression::UnaryOperation(operator, inner) => {
                 output.push_str(&self.generate_expression(inner)?);
-                output.push_str("    neg rax\n");
+                output.push_str("\tneg rax\n");
             },
             Expression::BinaryOperation(lhs,operator ,rhs ) => {
                 let left = self.generate_expression(lhs)?;
                 output.push_str(&left);
-                output.push_str("    push rax\n");
+                output.push_str("\tpush rax\n");
 
                 let right = self.generate_expression(rhs)?;
                 output.push_str(&right);
-                output.push_str("    pop rcx\n");
+                output.push_str("\tpop rcx\n");
 
                 match operator {
                     Operator::Add => {
-                        output.push_str("    add rcx, rax\n");
-                        output.push_str("    mov rax, rcx\n");
+                        output.push_str("\tadd rcx, rax\n");
+                        output.push_str("\tmov rax, rcx\n");
                     },
                     Operator::Subtract => {
-                        output.push_str("    sub rcx, rax\n");
-                        output.push_str("    mov rax, rcx\n");
+                        output.push_str("\tsub rcx, rax\n");
+                        output.push_str("\tmov rax, rcx\n");
                     },
                     Operator::Multiply => {
-                        output.push_str("    imul rcx, rax\n");
-                        output.push_str("    mov rax, rcx\n");
+                        output.push_str("\timul rcx, rax\n");
+                        output.push_str("\tmov rax, rcx\n");
                     },
                     Operator::Divide => {
-                        output.push_str("    xchg rax, rcx\n");
-                        output.push_str("    xor rdx, rdx\n");
-                        output.push_str("    idiv rcx\n");
+                        output.push_str("\txchg rax, rcx\n");
+                        output.push_str("\txor rdx, rdx\n");
+                        output.push_str("\tidiv rcx\n");
                     },
+                    Operator::Equal => {
+                        output.push_str("\tcmp rcx, rax\n");
+                        output.push_str("\tsete al\n");
+                        output.push_str("\tmovzx rax, al\n");
+                    }
                     _ => {
                         return Err(CodegenError::GenericError);
                     }
