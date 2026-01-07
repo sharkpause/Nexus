@@ -28,7 +28,9 @@ pub enum Token {
     GreaterEqual,
     And,
     Or,
-    Not
+    Not,
+    Break,
+    Continue
 }
 
 pub fn print_token(token: &Token) {
@@ -62,5 +64,7 @@ pub fn print_token(token: &Token) {
         Token::And => println!("And"),
         Token::Or => println!("Or"),
         Token::Not => println!("Not"),
+        Token::Break => println!("Break"),
+        Token::Continue => println!("Continue")
     }
 }
