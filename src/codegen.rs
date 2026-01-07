@@ -191,7 +191,6 @@ impl CodeGenerator {
                 return Ok(output);
             },
             Statement::If{ condition: expression, then_branch: body, else_branch: else_ } => {
-                // line below is for generating arguments
                 let mut output = self.generate_expression(&expression)?;
                 
                 let endif_label = format!("_endif_{}", self.label_counter);
@@ -219,6 +218,21 @@ impl CodeGenerator {
 
                 output.push_str(&then_code);
                 output.push_str(&branch_code);
+
+                return Ok(output);
+            },
+            Statement::While { condition, body } => {
+                let start_label = format!("_loop_start{}", self.label_counter);
+                let end_label = format!("_loop_end{}", self.label_counter);
+                self.label_counter += 1;
+                
+                let mut output = format!("\t{}:\n", start_label);
+
+                output.push_str(&self.generate_expression(&condition)?);
+                output.push_str(&format!("\tcmp rax, 0\n\tje {}\n", end_label));
+                output.push_str(&self.generate_statement(*body)?);
+                output.push_str(&format!("\tjmp {}\n", start_label));
+                output.push_str(&format!("\t{}:\n", end_label));
 
                 return Ok(output);
             }

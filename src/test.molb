@@ -4,5 +4,5 @@ function int entry() {
         x = x + 1;
     }
 
-    return 1;
+    return x;
 }
