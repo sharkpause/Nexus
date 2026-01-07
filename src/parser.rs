@@ -421,7 +421,7 @@ impl Parser {
 
                     println!("a");
                     let operator = self.token_to_operator(&operator_token)
-                        .expect("binding_power returned Some but token_to_operator returned None");
+                        .ok_or(ParserError::UnexpectedEndOfInput)?;
                     println!("{:?}", operator);
 
                     lhs = Expression::BinaryOperation(
