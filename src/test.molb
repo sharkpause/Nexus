@@ -1,23 +1,11 @@
-function int sub(int x, int y) {
-    return x - y;
-}
-
-function int sub_wrapper(int x, int y) {
-    return sub(x, y);
+function int factorial(int x) {
+    if(x == 0) {
+        return 1;
+    }
+    
+    return x * factorial(x-1);
 }
 
 function int entry() {
-    var int x = 20;
-    var int y = 15;
-    var int z = 0;
-
-    if(x == 20) {
-        z = sub_wrapper(x, y);
-    } else if(x != 10) {
-        z = 99;
-    } else {
-        z = -10;
-    }
-
-    return z;
+    return factorial(-1);
 }

@@ -191,18 +191,34 @@ impl CodeGenerator {
                 return Ok(output);
             },
             Statement::If(expression, body, else_) => {
-                // generating arguments
+                // line below is for generating arguments
                 let mut output = self.generate_expression(&expression)?;
                 
-                let endif_label = format!("\t_endif_{}", self.label_counter);
+                let endif_label = format!("_endif_{}", self.label_counter);
                 self.label_counter += 1;
                 
-                output.push_str("\tcmp rax, 0\n");
-                output.push_str(&format!("\tje _endif_{}\n", self.label_counter - 1));
-                output.push_str(&self.generate_statement(*body)?);
-                // output.push_str(&format!("\tjmp _endif_{}\n", self.label_counter - 1));
-                
-                output.push_str(&format!("{}:\n", endif_label));
+                let mut then_code = String::new();
+                then_code.push_str("\tcmp rax, 0\n");
+
+                let mut branch_code = String::new();
+                let else_label = match else_ {
+                    Some(statement) => {
+                        let label = format!("_else{}", self.label_counter);
+                        branch_code.push_str(&format!("\t{}:\n", label));
+                        branch_code.push_str(&self.generate_statement(*statement)?);
+                        label
+                    },
+                    None => {
+                        branch_code.push_str(&format!("\t{}:\n", endif_label));
+                        endif_label
+                    }
+                };
+
+                then_code.push_str(&format!("\tje {}\n", else_label));
+                then_code.push_str(&self.generate_statement(*body)?);
+
+                output.push_str(&then_code);
+                output.push_str(&branch_code);
 
                 return Ok(output);
             }
