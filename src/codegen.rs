@@ -10,14 +10,16 @@ pub enum CodegenError {
 
 pub struct CodeGenerator {
     symbol_table: Vec<HashMap<String, i64>>,
-    stack_size: i64
+    stack_size: i64,
+    label_counter: i64
 }
 
 impl Default for CodeGenerator {
     fn default() -> Self {
         return Self {
             symbol_table: Vec::new(),
-            stack_size: 8 // 8 so offset is always a multiple of 8
+            stack_size: 8, // 8 so offset is always a multiple of 8
+            label_counter: 0
         };
     }
 }
@@ -99,12 +101,6 @@ impl CodeGenerator {
 
                     output.push_str(&statements_code);
 
-                    output.push_str(
-                        "\tmov rsp, rbp\n\
-                        \tpop rbp\n\
-                        \tret\n"
-                    );
-
                     self.exit_scope();
                 },
                 TopLevel::Statement(statement) => {
@@ -155,6 +151,11 @@ impl CodeGenerator {
             },
             Statement::Return(expression) => {
                 output.push_str(&self.generate_expression(&expression)?);
+                output.push_str(
+                    "\tmov rsp, rbp\n\
+                    \tpop rbp\n\
+                    \tret\n"
+                );
             
                 return Ok(output);
             },
@@ -190,7 +191,18 @@ impl CodeGenerator {
                 return Ok(output);
             },
             Statement::If(expression, body, else_) => {
-                let output = self.generate_expression(&expression)?;
+                // generating arguments
+                let mut output = self.generate_expression(&expression)?;
+                
+                let endif_label = format!("\t_endif_{}", self.label_counter);
+                self.label_counter += 1;
+                
+                output.push_str("\tcmp rax, 0\n");
+                output.push_str(&format!("\tje _endif_{}\n", self.label_counter - 1));
+                output.push_str(&self.generate_statement(*body)?);
+                // output.push_str(&format!("\tjmp _endif_{}\n", self.label_counter - 1));
+                
+                output.push_str(&format!("{}:\n", endif_label));
 
                 return Ok(output);
             }
@@ -275,7 +287,53 @@ impl CodeGenerator {
                         output.push_str("\tcmp rcx, rax\n");
                         output.push_str("\tsete al\n");
                         output.push_str("\tmovzx rax, al\n");
-                    }
+                    },
+                    Operator::NotEqual => {
+                        output.push_str("\tcmp rcx, rax\n");
+                        output.push_str("\tsetne al\n");
+                        output.push_str("\tmovzx rax, al\n");
+                    },
+                    Operator::LessThan => {
+                        output.push_str("\tcmp rcx, rax\n");
+                        output.push_str("\tsetl al\n");
+                        output.push_str("\tmovzx rax, al\n");
+                    },
+                    Operator::LessEqual => {
+                        output.push_str("\tcmp rcx, rax\n");
+                        output.push_str("\tsetle al\n");
+                        output.push_str("\tmovzx rax, al\n");
+                    },
+                    Operator::GreaterThan => {
+                        output.push_str("\tcmp rcx, rax\n");
+                        output.push_str("\tsetg al\n");
+                        output.push_str("\tmovzx rax, al\n");
+                    },
+                    Operator::GreaterEqual => {
+                        output.push_str("\tcmp rcx, rax\n");
+                        output.push_str("\tsetge al\n");
+                        output.push_str("\tmovzx rax, al\n");
+                    },
+                    Operator::And => {
+                        output.push_str("cmp rcx, 0\n");
+                        output.push_str("setne cl\n");
+                        output.push_str("cmp rax, 0\n");
+                        output.push_str("setne al\n");
+                        output.push_str("and al, cl\n");
+                        output.push_str("movzx rax, al\n");
+                    },
+                    Operator::Or => {
+                        output.push_str("cmp rcx, 0\n");
+                        output.push_str("setne cl\n");
+                        output.push_str("cmp rax, 0\n");
+                        output.push_str("setne al\n");
+                        output.push_str("or al, cl\n");
+                        output.push_str("movzx rax, al\n");
+                    },
+                    Operator::Not => {
+                        output.push_str("\tcmp rax, 0\n");
+                        output.push_str("\tsete al\n");
+                        output.push_str("\tmovzx rax, al\n");
+                    },
                     _ => {
                         return Err(CodegenError::GenericError);
                     }
