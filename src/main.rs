@@ -103,6 +103,14 @@ fn print_statement(stmt: &Statement, indent: usize) {
             print_expression(condition, indent + 1);
             print_statement(body, indent + 1);
         }
+
+        Statement::Break => {
+            println!("{}Break", padding);
+        }
+
+        Statement::Continue => {
+            println!("{}Continue", padding);
+        }
     }
 }
 

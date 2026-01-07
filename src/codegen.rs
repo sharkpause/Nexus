@@ -5,13 +5,17 @@ use crate::parser::{Expression, Operator, Statement, TopLevel, Type};
 #[derive(Debug)]
 pub enum CodegenError {
     GenericError,
-    UndefinedVariable(String)
+    UndefinedVariable(String),
+    InvalidBreak,
+    InvalidContinue
 }
 
 pub struct CodeGenerator {
     symbol_table: Vec<HashMap<String, i64>>,
     stack_size: i64,
-    label_counter: i64
+    if_label_counter: i64,
+    loop_label_counter: i64,
+    loop_stack: Vec<(String, String)>
 }
 
 impl Default for CodeGenerator {
@@ -19,7 +23,9 @@ impl Default for CodeGenerator {
         return Self {
             symbol_table: Vec::new(),
             stack_size: 8, // 8 so offset is always a multiple of 8
-            label_counter: 0
+            if_label_counter: 0,
+            loop_label_counter: 0,
+            loop_stack: Vec::new()
         };
     }
 }
@@ -193,8 +199,8 @@ impl CodeGenerator {
             Statement::If{ condition: expression, then_branch: body, else_branch: else_ } => {
                 let mut output = self.generate_expression(&expression)?;
                 
-                let endif_label = format!("_endif_{}", self.label_counter);
-                self.label_counter += 1;
+                let endif_label = format!("_endif_{}", self.if_label_counter);
+                self.if_label_counter += 1;
                 
                 let mut then_code = String::new();
                 then_code.push_str("\tcmp rax, 0\n");
@@ -202,7 +208,7 @@ impl CodeGenerator {
                 let mut branch_code = String::new();
                 let else_label = match else_ {
                     Some(statement) => {
-                        let label = format!("_else{}", self.label_counter);
+                        let label = format!("_else{}", self.if_label_counter);
                         branch_code.push_str(&format!("\t{}:\n", label));
                         branch_code.push_str(&self.generate_statement(*statement)?);
                         label
@@ -222,9 +228,12 @@ impl CodeGenerator {
                 return Ok(output);
             },
             Statement::While { condition, body } => {
-                let start_label = format!("_loop_start{}", self.label_counter);
-                let end_label = format!("_loop_end{}", self.label_counter);
-                self.label_counter += 1;
+                let start_label = format!("_loop_start{}", self.loop_label_counter);
+                let end_label = format!("_loop_end{}", self.loop_label_counter);
+                
+                self.loop_stack.push((start_label.clone(), end_label.clone()));
+
+                self.loop_label_counter += 1;
                 
                 let mut output = format!("\t{}:\n", start_label);
 
@@ -234,8 +243,18 @@ impl CodeGenerator {
                 output.push_str(&format!("\tjmp {}\n", start_label));
                 output.push_str(&format!("\t{}:\n", end_label));
 
+                self.loop_stack.pop();
+
                 return Ok(output);
-            }
+            },
+            Statement::Break => {
+                let loop_context = self.loop_stack.last().ok_or(CodegenError::InvalidBreak)?;
+                return Ok(format!("\tjmp {}\n", loop_context.1));
+            },
+            Statement::Continue => {
+                let loop_context = self.loop_stack.last().ok_or(CodegenError::InvalidContinue)?;
+                return Ok(format!("\tjmp {}\n", loop_context.0));
+            },
             _ => {
                 return Err(CodegenError::GenericError);
             }

@@ -398,13 +398,20 @@ impl Parser {
                 });
             },
             Some(Token::Break) => {
+                self.consume_token();
+                self.expect_token(&Token::Semicolon);
                 return Ok(Statement::Break);
             },
             Some(Token::Continue) => {
+                self.consume_token();
+                self.expect_token(&Token::Semicolon);
                 return Ok(Statement::Continue);
-            }
+            },
+            Some(token) => {
+                return Err(ParserError::UnexpectedToken(token.clone()));
+            },
             _ => {
-                return Err(ParserError::GenericError);
+                return Err(ParserError::UnexpectedEndOfInput);
             }
         }
     }
