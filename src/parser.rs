@@ -50,6 +50,9 @@ pub enum Statement {
         condition: Expression,
         body: Box<Statement>,
     },
+
+    Break,
+    Continue
 }
 
 #[derive(Debug, Clone)]
@@ -393,6 +396,12 @@ impl Parser {
                     condition,
                     body
                 });
+            },
+            Some(Token::Break) => {
+                return Ok(Statement::Break);
+            },
+            Some(Token::Continue) => {
+                return Ok(Statement::Continue);
             }
             _ => {
                 return Err(ParserError::GenericError);
