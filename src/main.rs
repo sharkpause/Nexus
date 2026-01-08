@@ -12,7 +12,8 @@ use crate::parser::Parser;
 use crate::parser::TopLevel;
 use crate::parser::Statement;
 use crate::parser::Expression;
-use crate::backends::ASMCodeGenerator;
+use crate::backend::generate_program;
+use crate::backends::LLVMCodeGenerator;
 
 fn read_file(path: &String) -> String {
     let source_code =
@@ -205,9 +206,9 @@ fn main() {
         }
     }
 
-    let mut codegen = ASMCodeGenerator::default();
+    let mut llvm_codegen = LLVMCodeGenerator::default();
 
-    let output = match codegen.generate(program) {
+    let output = match generate_program(program, &mut llvm_codegen) {
         Ok(output) => output,
         Err(e) => {
             eprintln!("codegen error: {:?}", e);
