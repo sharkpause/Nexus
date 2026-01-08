@@ -1,7 +1,8 @@
 mod token;
 mod lexer;
 mod parser;
-mod codegen;
+mod backend;
+mod backends;
 
 use std::{env, fs, process::Command};
 
@@ -11,7 +12,7 @@ use crate::parser::Parser;
 use crate::parser::TopLevel;
 use crate::parser::Statement;
 use crate::parser::Expression;
-use crate::codegen::{ CodeGenerator };
+use crate::backends::ASMCodeGenerator;
 
 fn read_file(path: &String) -> String {
     let source_code =
@@ -204,7 +205,7 @@ fn main() {
         }
     }
 
-    let mut codegen = CodeGenerator::default();
+    let mut codegen = ASMCodeGenerator::default();
 
     let output = match codegen.generate(program) {
         Ok(output) => output,

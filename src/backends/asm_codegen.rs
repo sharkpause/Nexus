@@ -1,16 +1,10 @@
 use std::{ collections::HashMap };
 
 use crate::parser::{Expression, Operator, Statement, TopLevel, Type};
+use crate::backend::Backend;
+use crate::backend::CodegenError;
 
-#[derive(Debug)]
-pub enum CodegenError {
-    GenericError,
-    UndefinedVariable(String),
-    InvalidBreak,
-    InvalidContinue
-}
-
-pub struct CodeGenerator {
+pub struct ASMCodeGenerator {
     symbol_table: Vec<HashMap<String, i64>>,
     stack_size: i64,
     if_label_counter: i64,
@@ -18,7 +12,7 @@ pub struct CodeGenerator {
     loop_stack: Vec<(String, String)>
 }
 
-impl Default for CodeGenerator {
+impl Default for ASMCodeGenerator {
     fn default() -> Self {
         return Self {
             symbol_table: Vec::new(),
@@ -30,7 +24,7 @@ impl Default for CodeGenerator {
     }
 }
 
-impl CodeGenerator {
+impl ASMCodeGenerator {
     pub fn enter_scope(&mut self) {
         self.symbol_table.push(HashMap::new());
     }
@@ -393,4 +387,10 @@ impl CodeGenerator {
         return Ok(output);
     }
 
+}
+
+impl Backend for ASMCodeGenerator {
+    fn generate(&mut self, program: Vec<TopLevel>) -> Result<String, CodegenError> {
+        return self.generate(program);
+    }
 }
