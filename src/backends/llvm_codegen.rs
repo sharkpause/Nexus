@@ -5,21 +5,19 @@ use crate::backend::Backend;
 use crate::backend::CodegenError;
 
 pub struct LLVMCodeGenerator {
-    symbol_table: Vec<HashMap<String, i64>>,
-    stack_size: i64,
-    if_label_counter: i64,
-    loop_label_counter: i64,
-    loop_stack: Vec<(String, String)>
+    ssa_counter: usize,
+    block_counter: usize,
+    loop_stack: Vec<(String, String)>,
+    variables: Vec<HashMap<String, String>>,
 }
 
 impl Default for LLVMCodeGenerator {
     fn default() -> Self {
         return Self {
-            symbol_table: Vec::new(),
-            stack_size: 8, // 8 so offset is always a multiple of 8
-            if_label_counter: 0,
-            loop_label_counter: 0,
-            loop_stack: Vec::new()
+            ssa_counter: 1,
+            block_counter: 0,
+            loop_stack: Vec::new(),
+            variables: Vec::new()
         };
     }
 }
@@ -33,10 +31,10 @@ impl LLVMCodeGenerator {
         self.symbol_table.pop().expect("Scope underflow");
     }
 
-    pub fn lookup_variable(&self, name: &str) -> Result<i64, CodegenError> {
-        for scope in self.symbol_table.iter().rev() {
-            if let Some(offset) = scope.get(name) {
-                return Ok(*offset);
+    pub fn lookup_variable(&self, name: &str) -> Result<String, CodegenError> {
+        for scope in self.variables.iter().rev() {
+            if let Some(ssa_name) = scope.get(name) {
+                return Ok(ssa_name.clone());
             }
         }
         
