@@ -9,6 +9,9 @@ pub enum SemanticError {
     DuplicateVariable {
         name: String
     },
+    DuplicateFunction {
+        name: String
+    },
     DuplicateParameter{ 
         name: String
     },
