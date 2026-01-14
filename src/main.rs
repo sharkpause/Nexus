@@ -55,7 +55,7 @@ fn print_statement(stmt: &Statement, indent: usize) {
     let padding = "  ".repeat(indent);
 
     match stmt {
-        Statement::Return { value } => {
+        Statement::Return { value, span } => {
             println!("{}Return:", padding);
             print_expression(value, indent + 1);
         }
@@ -64,24 +64,25 @@ fn print_statement(stmt: &Statement, indent: usize) {
             var_type,
             name,
             initializer,
+            span
         } => {
             println!("{}Declare {:?} {}", padding, var_type, name);
             print_expression(initializer, indent + 1);
         }
 
-        Statement::VariableAssignment { name, value } => {
+        Statement::VariableAssignment { name, value, span } => {
             println!("{}Assign {}", padding, name);
             print_expression(value, indent + 1);
         }
 
-        Statement::Block { statements } => {
+        Statement::Block { statements, span } => {
             println!("{}Block:", padding);
             for stmt in statements {
                 print_statement(stmt, indent + 1);
             }
         }
 
-        Statement::Expression { expression } => {
+        Statement::Expression { expression, span } => {
             println!("{}Expression:", padding);
             print_expression(expression, indent + 1);
         }
@@ -90,6 +91,7 @@ fn print_statement(stmt: &Statement, indent: usize) {
             condition,
             then_branch,
             else_branch,
+            span
         } => {
             println!("{}If:", padding);
             print_expression(condition, indent + 1);
@@ -103,17 +105,17 @@ fn print_statement(stmt: &Statement, indent: usize) {
             }
         }
 
-        Statement::While { condition, body } => {
+        Statement::While { condition, body, span } => {
             println!("{}While:", padding);
             print_expression(condition, indent + 1);
             print_statement(body, indent + 1);
         }
 
-        Statement::Break => {
+        Statement::Break { span } => {
             println!("{}Break", padding);
         }
 
-        Statement::Continue => {
+        Statement::Continue { span } => {
             println!("{}Continue", padding);
         }
     }
@@ -124,15 +126,15 @@ fn print_expression(expr: &Expression, indent: usize) {
     let padding = "  ".repeat(indent);
 
     match expr {
-        Expression::Variable { name } => {
+        Expression::Variable { name, span } => {
             println!("{}Variable {}", padding, name);
         }
 
-        Expression::IntLiteral { value } => {
+        Expression::IntLiteral { value, span } => {
             println!("{}Int {}", padding, value);
         }
 
-        Expression::UnaryOperation { operator, operand } => {
+        Expression::UnaryOperation { operator, operand, span } => {
             println!("{}Unary {:?}", padding, operator);
             print_expression(operand, indent + 1);
         }
@@ -141,13 +143,14 @@ fn print_expression(expr: &Expression, indent: usize) {
             left,
             operator,
             right,
+            span
         } => {
             println!("{}Binary {:?}", padding, operator);
             print_expression(left, indent + 1);
             print_expression(right, indent + 1);
         }
 
-        Expression::FunctionCall { callee, arguments } => {
+        Expression::FunctionCall { callee, arguments, span } => {
             println!("{}Call:", padding);
             print_expression(callee, indent + 1);
             for arg in arguments {

@@ -1,87 +1,109 @@
 use crate::{lexer::LexerError, token::{ Token, TokenKind }};
 
+#[derive(Debug, Clone, Copy)]
+pub struct Span {
+    pub line: usize,
+    pub column: usize,
+}
+
 #[derive(Debug)]
 pub enum ParserError {
     EndOfInput,
     GenericError,
     UnexpectedToken(Token),
     UnexpectedEndOfInput,
-    UnexpectedType(Type)
+    UnexpectedType(Type),
 }
 
 #[derive(Debug, Clone)]
 pub enum TopLevel {
     Function(Function),
-    Statement(Statement)
+    Statement(Statement),
 }
 
 #[derive(Debug, Clone)]
 pub enum Statement {
     Return {
         value: Expression,
+        span: Span,
     },
 
     VariableDeclare {
         var_type: Type,
         name: String,
         initializer: Expression,
+        span: Span,
     },
 
     VariableAssignment {
         name: String,
         value: Expression,
+        span: Span,
     },
 
     Block {
         statements: Vec<Statement>,
+        span: Span,
     },
 
     Expression {
         expression: Expression,
+        span: Span,
     },
 
     If {
         condition: Expression,
         then_branch: Box<Statement>,
         else_branch: Option<Box<Statement>>,
+        span: Span,
     },
 
     While {
         condition: Expression,
         body: Box<Statement>,
+        span: Span,
     },
 
-    Break,
-    Continue
+    Break {
+        span: Span,
+    },
+
+    Continue {
+        span: Span,
+    },
 }
 
 #[derive(Debug, Clone)]
 pub enum Expression {
     Variable {
         name: String,
+        span: Span,
     },
 
     IntLiteral {
         value: i64,
+        span: Span,
     },
 
     BinaryOperation {
         left: Box<Expression>,
         operator: Operator,
         right: Box<Expression>,
+        span: Span,
     },
 
     UnaryOperation {
         operator: Operator,
         operand: Box<Expression>,
+        span: Span,
     },
 
     FunctionCall {
         callee: Box<Expression>,
         arguments: Vec<Expression>,
+        span: Span,
     },
 }
-
 
 #[derive(Debug, Clone)]
 pub enum Type {
@@ -110,12 +132,13 @@ pub struct Function {
     pub name: String,
     pub return_type: Type,
     pub parameters: Vec<(Type, String)>,
-    pub body: Statement
+    pub body: Statement,
+    pub span: Span,
 }
 
 pub struct Parser {
     pub tokens: Vec<Token>,
-    pub index: usize
+    pub index: usize,
 }
 
 impl Parser {
@@ -135,14 +158,14 @@ impl Parser {
         self.index += 1;
     }
 
-    pub fn expect_token(&mut self, expected: &TokenKind) -> Result<(), ParserError> {
-        let token = self.peek_token(0).ok_or(ParserError::UnexpectedEndOfInput)?;
+    pub fn expect_token(&mut self, expected: &TokenKind) -> Result<Token, ParserError> {
+        let token = self.peek_token(0).ok_or(ParserError::UnexpectedEndOfInput)?.clone();
         
          if token.same_kind(expected) {
             self.consume_token();
-            Ok(())
+            return Ok(token);
         } else {
-            Err(ParserError::UnexpectedToken(token.clone()))
+            return Err(ParserError::UnexpectedToken(token.clone()));
         }
     }
 
@@ -240,7 +263,11 @@ impl Parser {
     }
 
     pub fn parse_function(&mut self) -> Result<Function, ParserError> {
-        self.expect_token(&TokenKind::Function)?;
+        let start_token = self.expect_token(&TokenKind::Function)?;
+        let span = Span {
+            line: start_token.line,
+            column: start_token.column
+        };
 
         let return_type = self.expect_type()?;
 
@@ -271,17 +298,23 @@ impl Parser {
             name: function_name,
             return_type: return_type,
             parameters,
-            body: self.parse_block()?
+            body: self.parse_block()?,
+            span
         });
     }
 
     pub fn parse_block(&mut self) -> Result<Statement, ParserError> {
-        self.expect_token(&TokenKind::LeftBrace)?;
+        let start_token = self.expect_token(&TokenKind::LeftBrace)?;
         let statements = self.parse_statements()?;
 
         self.expect_token(&TokenKind::RightBrace)?;
 
-        return Ok(Statement::Block{ statements });
+        let span = Span {
+            line: start_token.line,
+            column: start_token.column,
+        };
+
+        return Ok(Statement::Block { statements, span });
     }
 
     pub fn parse_statements(&mut self) -> Result<Vec<Statement>, ParserError> {
@@ -301,6 +334,10 @@ impl Parser {
     pub fn parse_statement(&mut self) -> Result<Statement, ParserError> {
         let token = self.peek_token(0)
             .ok_or(ParserError::UnexpectedEndOfInput)?;
+        let span = Span {
+            line: token.line,
+            column: token.column
+        };
 
         match &token.kind {
             TokenKind::LeftBrace => self.parse_block(),
@@ -311,7 +348,7 @@ impl Parser {
                 let expression = self.parse_expression(0)?;
                 self.expect_token(&TokenKind::Semicolon)?;
                 
-                Ok(Statement::Return { value: expression })
+                return Ok(Statement::Return { value: expression, span });
             }
 
             TokenKind::Var => {
@@ -325,11 +362,12 @@ impl Parser {
                 
                 self.expect_token(&TokenKind::Semicolon)?;
                 
-                Ok(Statement::VariableDeclare {
+                return Ok(Statement::VariableDeclare {
                     var_type: variable_type,
                     name: variable_name,
                     initializer,
-                })
+                    span
+                });
             }
 
             TokenKind::If => {
@@ -374,10 +412,11 @@ impl Parser {
                         condition: cond.clone(),
                         then_branch: Box::new(body.clone()),
                         else_branch: result,
+                        span
                     }));
                 }
 
-                Ok(*result.expect("Expected at least one if/else branch"))
+                return Ok(*result.expect("Expected at least one if/else branch"));
             }
 
             TokenKind::While => {
@@ -389,21 +428,21 @@ impl Parser {
                 self.expect_token(&TokenKind::RightParentheses)?;
                 let body = Box::new(self.parse_statement()?);
                 
-                Ok(Statement::While { condition, body })
+                return Ok(Statement::While { condition, body, span });
             }
 
             TokenKind::Break => {
                 self.consume_token();
                 self.expect_token(&TokenKind::Semicolon)?;
-                
-                Ok(Statement::Break)
+                 
+                return Ok(Statement::Break { span });
             }
 
             TokenKind::Continue => {
                 self.consume_token();
                 self.expect_token(&TokenKind::Semicolon)?;
                 
-                Ok(Statement::Continue)
+                return Ok(Statement::Continue{ span });
             }
 
             TokenKind::Identifier(_) => {
@@ -417,7 +456,7 @@ impl Parser {
                         self.consume_token(); // =
                         let expression = self.parse_expression(0)?;
                         self.expect_token(&TokenKind::Semicolon)?;
-                        return Ok(Statement::VariableAssignment { name, value: expression });
+                        return Ok(Statement::VariableAssignment { name, value: expression, span });
                     }
                 }
 
@@ -425,33 +464,37 @@ impl Parser {
                 let expression = self.parse_expression(0)?;
                 self.expect_token(&TokenKind::Semicolon)?;
                 
-                Ok(Statement::Expression { expression })
+                return Ok(Statement::Expression { expression, span });
             }
 
-        _ => Err(ParserError::UnexpectedToken(token.clone())),
+            _ => Err(ParserError::UnexpectedToken(token.clone())),
+        }
     }
-}
 
     pub fn parse_expression(&mut self, min_bp: u8) -> Result<Expression, ParserError> {
         let current_token = self
             .peek_token(0)
             .ok_or(ParserError::UnexpectedEndOfInput)?;
+        let span = Span {
+            line: current_token.line,
+            column: current_token.column
+        };
 
         let mut lhs = match &current_token.kind {
             TokenKind::Identifier(name) => {
                 let name = name.clone();
                 self.consume_token();
                     
-                if !self.peek_token(0).map_or(false, |tok| tok.same_kind(&TokenKind::LeftParentheses)) {
-                    Expression::Variable { name }
+                if !self.peek_token(0).map_or(false, |token| token.same_kind(&TokenKind::LeftParentheses)) {
+                    Expression::Variable { name, span }
                 } else {
                     self.consume_token(); // consume '('
                     let mut arguments = Vec::new();
                     
-                    while !self.peek_token(0).map_or(false, |tok| tok.same_kind(&TokenKind::RightParentheses)) {
+                    while !self.peek_token(0).map_or(false, |token| token.same_kind(&TokenKind::RightParentheses)) {
                         arguments.push(self.parse_expression(0)?);
                     
-                        if self.peek_token(0).map_or(false, |tok| tok.same_kind(&TokenKind::Comma)) {
+                        if self.peek_token(0).map_or(false, |token| token.same_kind(&TokenKind::Comma)) {
                             self.consume_token();
                         } else {
                             break;
@@ -461,8 +504,9 @@ impl Parser {
                     self.expect_token(&TokenKind::RightParentheses)?;
                 
                     Expression::FunctionCall {
-                        callee: Box::new(Expression::Variable { name }),
+                        callee: Box::new(Expression::Variable { name, span }),
                         arguments,
+                        span
                     }
                 }
             }
@@ -471,7 +515,7 @@ impl Parser {
                 let value = *number; // copy the i64
                 self.consume_token();
                 
-                Expression::IntLiteral { value }
+                Expression::IntLiteral { value, span }
             }
 
             TokenKind::LeftParentheses => {
@@ -489,6 +533,7 @@ impl Parser {
                 Expression::UnaryOperation {
                     operator: Operator::Subtract,
                     operand: Box::new(expression),
+                    span
                 }
             }
 
@@ -499,6 +544,7 @@ impl Parser {
                 Expression::UnaryOperation {
                     operator: Operator::Not,
                     operand: Box::new(expression),
+                    span
                 }
             }
 
@@ -527,13 +573,14 @@ impl Parser {
                         left: Box::new(lhs),
                         operator,
                         right: Box::new(rhs),
+                        span
                     };
                 }
                 _ => break,
             }
         }
 
-        Ok(lhs)
+        return Ok(lhs);
     }
 
 }
