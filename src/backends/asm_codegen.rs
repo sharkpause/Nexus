@@ -116,7 +116,7 @@ impl ASMCodeGenerator {
 
     fn generate_function_body(&mut self, statement: Statement) -> Result<String, CodegenError> {
         match statement {
-            Statement::Block{ statements } => {
+            Statement::Block{ statements, span } => {
                 let mut statements_code = String::new();
                 
                 for statement in statements {
@@ -136,7 +136,7 @@ impl ASMCodeGenerator {
         let mut output = String::new();
 
         match statement {
-            Statement::Block{ statements} => {
+            Statement::Block{ statements, span} => {
                 self.enter_scope();
 
                 let mut statements_code = String::new();
@@ -149,7 +149,7 @@ impl ASMCodeGenerator {
                 self.exit_scope();
                 return Ok(statements_code);
             },
-            Statement::Return{ value: expression } => {
+            Statement::Return{ value: expression, span } => {
                 output.push_str(&self.generate_expression(&expression)?);
                 output.push_str(
                     "\tmov rsp, rbp\n\
@@ -159,7 +159,7 @@ impl ASMCodeGenerator {
             
                 return Ok(output);
             },
-            Statement::VariableDeclare{ var_type, name: var_name , initializer: expression } => {
+            Statement::VariableDeclare{ var_type, name: var_name , initializer: expression, span } => {
                 let stack_offset;
                 
                 match var_type {
@@ -177,7 +177,7 @@ impl ASMCodeGenerator {
                 output.push_str(&format!("\tmov [rbp - {}], rax\n", stack_offset));
                 return Ok(output);
             },
-            Statement::VariableAssignment{ name, value: expression } => {
+            Statement::VariableAssignment{ name, value: expression, span } => {
                 let offset = self.lookup_variable(&name)?;
             
                 output.push_str(&self.generate_expression(&expression)?);
@@ -185,12 +185,12 @@ impl ASMCodeGenerator {
 
                 return Ok(output);
             },
-            Statement::Expression{ expression } => {
+            Statement::Expression{ expression, span } => {
                 let output = self.generate_expression(&expression)?;
 
                 return Ok(output);
             },
-            Statement::If{ condition: expression, then_branch: body, else_branch: else_ } => {
+            Statement::If{ condition: expression, then_branch: body, else_branch: else_, span } => {
                 let mut output = self.generate_expression(&expression)?;
                 
                 let endif_label = format!("_endif_{}", self.if_label_counter);
@@ -221,7 +221,7 @@ impl ASMCodeGenerator {
 
                 return Ok(output);
             },
-            Statement::While { condition, body } => {
+            Statement::While { condition, body, span } => {
                 let start_label = format!("_loop_start{}", self.loop_label_counter);
                 let end_label = format!("_loop_end{}", self.loop_label_counter);
                 
@@ -241,11 +241,11 @@ impl ASMCodeGenerator {
 
                 return Ok(output);
             },
-            Statement::Break => {
+            Statement::Break{ span } => {
                 let loop_context = self.loop_stack.last().ok_or(CodegenError::InvalidBreak)?;
                 return Ok(format!("\tjmp {}\n", loop_context.1));
             },
-            Statement::Continue => {
+            Statement::Continue{ span } => {
                 let loop_context = self.loop_stack.last().ok_or(CodegenError::InvalidContinue)?;
                 return Ok(format!("\tjmp {}\n", loop_context.0));
             },
@@ -259,7 +259,7 @@ impl ASMCodeGenerator {
         let mut output = String::new();
 
         match expression {
-            Expression::FunctionCall{ callee: name, arguments } => {
+            Expression::FunctionCall{ callee: name, arguments, span } => {
                 for (index, argument) in arguments.iter().enumerate() {
                     output.push_str(&self.generate_expression(argument)?);
 
@@ -277,7 +277,7 @@ impl ASMCodeGenerator {
                 }
 
                 let function_name = match &**name {
-                    Expression::Variable{ name } => {
+                    Expression::Variable{ name, span } => {
                         name
                     },
                     _ => {
@@ -287,19 +287,19 @@ impl ASMCodeGenerator {
 
                 output.push_str(&format!("\tcall {}\n", function_name));
             },
-            Expression::Variable{ name } => {
+            Expression::Variable{ name, span } => {
                 let offset = self.lookup_variable(&name)?;
 
                 output.push_str(&format!("\tmov rax, [rbp - {}]\n", offset));
             },
-            Expression::IntLiteral{ value } => {
+            Expression::IntLiteral{ value, span } => {
                 output.push_str(&format!("\tmov rax, {}\n", value));
             },
-            Expression::UnaryOperation{ operator, operand: inner } => {
+            Expression::UnaryOperation{ operator, operand: inner, span } => {
                 output.push_str(&self.generate_expression(inner)?);
                 output.push_str("\tneg rax\n");
             },
-            Expression::BinaryOperation{ left: lhs,operator ,right: rhs } => {
+            Expression::BinaryOperation{ left: lhs,operator ,right: rhs, span } => {
                 let left = self.generate_expression(lhs)?;
                 output.push_str(&left);
                 output.push_str("\tpush rax\n");

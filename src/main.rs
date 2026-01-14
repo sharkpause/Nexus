@@ -7,13 +7,10 @@ mod semantic_analyzer;
 
 use std::{env, fs, process::Command};
 
-use crate::semantic_analyzer::SemanticAnalyzer;
+use crate::semantic_analyzer::{ SemanticAnalyzer, SemanticError };
 use crate::token::print_token;
-use crate::lexer::Lexer;
-use crate::parser::Parser;
-use crate::parser::TopLevel;
-use crate::parser::Statement;
-use crate::parser::Expression;
+use crate::lexer::{ Lexer, LexerError };
+use crate::parser::{ Parser, TopLevel, Statement, Expression, ParserError };
 use crate::backend::generate_program;
 use crate::backends::asm_codegen::ASMCodeGenerator;
 // use crate::backends::LLVMCodeGenerator;
@@ -162,20 +159,19 @@ fn print_expression(expr: &Expression, indent: usize) {
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-
+    
     if args.len() < 2 {
         eprintln!("Incorrect usage");
         return;
     }
-
+    
     let input = read_file(&args[1]);
 
     let mut lexer = Lexer::from(input);
-
     let tokens = match lexer.tokenize() {
         Ok(tokens) => tokens,
         Err(e) => {
-            eprintln!("lexer error: {:?}", e);
+            eprintln!("Lexer error: {:?}", e);
             return;
         }
     };
@@ -186,11 +182,29 @@ fn main() {
     }
 
     let mut parser = Parser::from(tokens);
-
     let program_tree = match parser.parse_program() {
         Ok(program) => program,
         Err(e) => {
-            eprintln!("parser error: {:?}", e);
+            match e {
+                ParserError::UnexpectedToken(token) => {
+                    eprintln!(
+                        "Parser error at line {}, column {}: unexpected token {:?}",
+                        token.line, token.column, token.kind
+                    );
+                }
+                ParserError::UnexpectedEndOfInput => {
+                    eprintln!("Parser error: unexpected end of input");
+                }
+                ParserError::UnexpectedType(_) => {
+                    eprintln!("Parser error: unexpected type");
+                }
+                ParserError::GenericError => {
+                    eprintln!("Parser error: generic error");
+                }
+                ParserError::EndOfInput => {
+                    eprintln!("Parser error: end of input");
+                }
+            }
             return;
         }
     };
@@ -206,21 +220,59 @@ fn main() {
     }
 
     let mut semantic_analyzer = SemanticAnalyzer::from(&program_tree);
-    semantic_analyzer.analyze().unwrap();
+    if let Err(e) = semantic_analyzer.analyze() {
+        match e {
+            SemanticError::NoEntryFunction => {
+                eprintln!("Semantic error: no 'entry' function found");
+            }
+            SemanticError::MainIsReserved { function } => {
+                eprintln!(
+                    "Semantic error at line {}, column {}: 'main' is a reserved function name",
+                    function.span.line, function.span.column
+                );
+            },
+            _ => {
+                eprintln!("Unknown semantic error");
+            }
+            // SemanticError::DuplicateVariable { variable } => {
+            //     eprintln!(
+            //         "Semantic error at line {}, column {}: duplicate variable '{}'",
+            //         variable.span.line, variable.span.column, variable.name()
+            //     );
+            // }
+            // SemanticError::DuplicateFunction { function } => {
+            //     eprintln!(
+            //         "Semantic error at line {}, column {}: duplicate function '{}'",
+            //         function.span.line, function.span.column, function.name
+            //     );
+            // }
+            // SemanticError::DuplicateParameter { variable } => {
+            //     eprintln!(
+            //         "Semantic error at line {}, column {}: duplicate parameter '{}'",
+            //         variable.span.line, variable.span.column, variable.name()
+            //     );
+            // }
+            // SemanticError::UndefinedVariable { variable } => {
+            //     eprintln!(
+            //         "Semantic error at line {}, column {}: undefined variable '{}'",
+            //         variable.span.line, variable.span.column, variable.name()
+            //     );
+            // }
+        }
+        return;
+    }
 
-    // let mut codegen_backend = LLVMCodeGenerator::default();
     let mut codegen_backend = ASMCodeGenerator::default();
-
     let output = match generate_program(program_tree, &mut codegen_backend) {
-        Ok(output) => output,
+        Ok(out) => out,
         Err(e) => {
-            eprintln!("codegen error: {:?}", e);
+            eprintln!("Codegen error: {:?}", e);
             return;
         }
     };
 
     println!("{}", output);
 
-    write_file(String::from("out.asm"), &output);
+    write_file("out.asm".to_string(), &output);
     assemble_and_link("out.asm", "out");
 }

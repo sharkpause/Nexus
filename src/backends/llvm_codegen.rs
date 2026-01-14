@@ -147,7 +147,7 @@ impl LLVMCodeGenerator {
             //     self.exit_scope();
             //     return Ok(statements_code);
             // },
-            Statement::Return{ value: expression } => {
+            Statement::Return{ value: expression, span } => {
                 let (expression_code, expression_ssa) = self.generate_expression(&expression)?;
             
                 let mut code = String::new();
@@ -259,7 +259,7 @@ impl LLVMCodeGenerator {
 
     fn generate_expression(&mut self, expression: &Expression) -> Result<(String, String), CodegenError> {
         match expression {
-            Expression::IntLiteral { value } => {
+            Expression::IntLiteral { value, span } => {
                 let ssa = format!("%{}", self.ssa_counter);
                 let code = format!(
                     "{}{} = add i64 0, {}\n",
@@ -269,7 +269,7 @@ impl LLVMCodeGenerator {
                 self.ssa_counter += 1;
                 return Ok((code, ssa));
             },
-            Expression::Variable { name } => {
+            Expression::Variable { name, span } => {
                 let variable_pointer = self.lookup_variable(name)?;
 
                 let ssa = format!("%{}", self.ssa_counter);
@@ -282,7 +282,7 @@ impl LLVMCodeGenerator {
             
                 return Ok((code, ssa));
             },
-            Expression::BinaryOperation { left, operator, right } => {
+            Expression::BinaryOperation { left, operator, right, span } => {
                 let (left_code, left_ssa) = self.generate_expression(left)?;
                 let (right_code, right_ssa) = self.generate_expression(right)?;
 

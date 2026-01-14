@@ -1,28 +1,30 @@
-use std::collections::HashSet;
+use std::collections::HashMap;
 
-use crate::parser::{ TopLevel };
+use crate::parser::{ TopLevel, Expression, Function, Span };
 
 #[derive(Debug)]
 pub enum SemanticError {
     NoEntryFunction,
-    MainIsReserved,
+    MainIsReserved {
+        function: Function
+    },
     DuplicateVariable {
-        name: String
+        variable: Expression
     },
     DuplicateFunction {
-        name: String
+        function: Function
     },
     DuplicateParameter{ 
-        name: String
+        variable: Expression
     },
     UndefinedVariable{
-        name: String
+        variable: Expression
     },
 }
 
 pub struct SemanticAnalyzer {
     program_tree: Vec<TopLevel>,
-    function_names: HashSet<String>
+    function_names: HashMap<String, Function>
 }
 
 impl SemanticAnalyzer {
@@ -30,14 +32,13 @@ impl SemanticAnalyzer {
         // Potentially change to take ownership of program_tree instead of copy for performance and memory usage
         return Self {
             program_tree: program_tree.to_vec(),
-            function_names: HashSet::new()
+            function_names: HashMap::new()
         };
     }
 
     pub fn analyze(&mut self) -> Result<(), SemanticError> {
         self.collect_functions();
         self.validate_entry_functions()?;
-        // TODO: Make minimal semantic check for no entry function and main is reserved
     
         return Ok(());
     }
@@ -45,18 +46,18 @@ impl SemanticAnalyzer {
     fn collect_functions(&mut self) {
         for toplevel in &self.program_tree {
             if let TopLevel::Function(function) = toplevel {
-                self.function_names.insert(function.name.clone());
+                self.function_names.insert(function.name.clone(), function.clone());
             }
         }
     }
 
     fn validate_entry_functions(&self) -> Result<(), SemanticError> {
-        if !self.function_names.contains("entry") {
+        if !self.function_names.contains_key("entry") {
             return Err(SemanticError::NoEntryFunction);
         }
         
-        if self.function_names.contains("main") {
-            return Err(SemanticError::MainIsReserved);
+        if let Some(main_function) = self.function_names.get("main") {
+            return Err(SemanticError::MainIsReserved { function: main_function.clone() });
         }
 
         return Ok(());
