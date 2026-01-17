@@ -92,7 +92,8 @@ impl<'a> SemanticAnalyzer<'a> {
             program_tree: program_tree,
             function_names: HashMap::new(),
             symbol_table: Vec::new(),
-            diagnostics: Diagnostics { errors: Vec::new() }
+            diagnostics: Diagnostics { errors: Vec::new() },
+            loop_depth: 0
         };
     }
 
