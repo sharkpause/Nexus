@@ -53,8 +53,15 @@ fn print_statement(stmt: &Statement, indent: usize) {
 
     match stmt {
         Statement::Return { value, span } => {
-            println!("{}Return:", padding);
-            print_expression(value, indent + 1);
+            match value {
+                Some(val) => {
+                    println!("{}Return:", padding);
+                    print_expression(val, indent + 1);
+                },
+                None => {
+                    println!("{}Return", padding)
+                }
+            }
         }
 
         Statement::VariableDeclare {
@@ -147,7 +154,7 @@ fn print_expression(expr: &Expression, indent: usize) {
             print_expression(right, indent + 1);
         }
 
-        Expression::FunctionCall { callee, arguments, span } => {
+        Expression::FunctionCall { called: callee, arguments, span } => {
             println!("{}Call:", padding);
             print_expression(callee, indent + 1);
             for arg in arguments {
@@ -220,44 +227,30 @@ fn main() {
     }
 
     let mut semantic_analyzer = SemanticAnalyzer::from(&program_tree);
-    if let Err(e) = semantic_analyzer.analyze() {
-        match e {
-            SemanticError::NoEntryFunction => {
-                eprintln!("Semantic error: no 'entry' function found");
+    let diagnostics = semantic_analyzer.analyze();
+    if diagnostics.has_errors() {
+        for error in diagnostics.errors.iter() {
+            match error {
+                SemanticError::NoEntryFunction => {
+                    eprintln!("Semantic error: no 'entry' function found");
+                }
+                SemanticError::MainIsReserved { span } => {
+                    eprintln!(
+                        "Semantic error at line {}, column {}: 'main' is a reserved function name",
+                        span.line, span.column
+                    );
+                }
+                SemanticError::InvalidTopLevelStatement { span } => {
+                    eprintln!(
+                        "Semantic error at line {}, column {}: Only functions are allowed at the top level",
+                        span.line,
+                        span.column
+                    );
+                }
+                _ => {
+                    eprintln!("Unknown semantic error");
+                }
             }
-            SemanticError::MainIsReserved { function } => {
-                eprintln!(
-                    "Semantic error at line {}, column {}: 'main' is a reserved function name",
-                    function.span.line, function.span.column
-                );
-            },
-            _ => {
-                eprintln!("Unknown semantic error");
-            }
-            // SemanticError::DuplicateVariable { variable } => {
-            //     eprintln!(
-            //         "Semantic error at line {}, column {}: duplicate variable '{}'",
-            //         variable.span.line, variable.span.column, variable.name()
-            //     );
-            // }
-            // SemanticError::DuplicateFunction { function } => {
-            //     eprintln!(
-            //         "Semantic error at line {}, column {}: duplicate function '{}'",
-            //         function.span.line, function.span.column, function.name
-            //     );
-            // }
-            // SemanticError::DuplicateParameter { variable } => {
-            //     eprintln!(
-            //         "Semantic error at line {}, column {}: duplicate parameter '{}'",
-            //         variable.span.line, variable.span.column, variable.name()
-            //     );
-            // }
-            // SemanticError::UndefinedVariable { variable } => {
-            //     eprintln!(
-            //         "Semantic error at line {}, column {}: undefined variable '{}'",
-            //         variable.span.line, variable.span.column, variable.name()
-            //     );
-            // }
         }
         return;
     }

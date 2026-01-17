@@ -150,7 +150,14 @@ impl ASMCodeGenerator {
                 return Ok(statements_code);
             },
             Statement::Return{ value: expression, span } => {
-                output.push_str(&self.generate_expression(&expression)?);
+                match expression {
+                    Some(expr) => {
+                        output.push_str(&self.generate_expression(&expr)?);
+                    },
+                    None => {}
+                }
+                
+                
                 output.push_str(
                     "\tmov rsp, rbp\n\
                     \tpop rbp\n\
@@ -259,7 +266,7 @@ impl ASMCodeGenerator {
         let mut output = String::new();
 
         match expression {
-            Expression::FunctionCall{ callee: name, arguments, span } => {
+            Expression::FunctionCall{ called: name, arguments, span } => {
                 for (index, argument) in arguments.iter().enumerate() {
                     output.push_str(&self.generate_expression(argument)?);
 
