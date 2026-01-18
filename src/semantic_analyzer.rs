@@ -59,6 +59,11 @@ pub enum SemanticError {
         expected: Type,
         span: Span
     },
+    InvalidType {
+        var_name: String,
+        var_type: Type,
+        span: Span
+    },
 
     // ------- Fatal errors ---------
     
@@ -139,6 +144,10 @@ impl<'a> SemanticAnalyzer<'a> {
         self.validate_entry_functions();
         if self.diagnostics.has_fatal() {
             return self.diagnostics
+        }
+
+        if let Some(mut function_symbol) = self.function_names.remove("entry") {
+            self.function_names.insert("main".to_string(), function_symbol);
         }
 
         if self.diagnostics.has_fatal() {
@@ -318,7 +327,13 @@ impl<'a> SemanticAnalyzer<'a> {
                         
                 if let Some(value_type) = self.infer_expression_type(value) {
                     if let Some(var_symbol) = self.lookup_variable(name) {
-                        if !var_symbol.var_type.same_kind(&value_type) {
+                        if var_symbol.var_type.is_void() {
+                            self.push_error(SemanticError::InvalidType {
+                                var_name: name.clone(),
+                                var_type: Type::Void,
+                                span: *span
+                            });
+                        } else if !var_symbol.var_type.same_kind(&value_type) {
                             self.push_error(SemanticError::MismatchedVariableType {
                                 name: name.clone(),
                                 expected_type: var_symbol.var_type.clone(),
@@ -331,12 +346,16 @@ impl<'a> SemanticAnalyzer<'a> {
             }
 
             Statement::VariableDeclare { var_type, name, initializer, span } => {
-                self.add_variable(name.clone(), var_type.clone(), *span);
                 self.validate_expression(initializer);
 
                 if let Some(init_type) = self.infer_expression_type(initializer) {
-                    // println!("{:?} {:?}", var_type, init_type);
-                    if !var_type.same_kind(&init_type) {
+                    if init_type.is_void() {
+                        self.push_error(SemanticError::InvalidType {
+                            var_name: name.clone(),
+                            var_type: Type::Void,
+                            span: *span
+                        });
+                    } else if !var_type.same_kind(&init_type) {
                         self.push_error(SemanticError::MismatchedVariableType {
                             name: name.clone(),
                             expected_type: var_type.clone(),
@@ -344,6 +363,8 @@ impl<'a> SemanticAnalyzer<'a> {
                             span: *span,
                         });
                     }
+
+                    self.add_variable(name.clone(), var_type.clone(), *span);
                 }
             },
 
@@ -365,7 +386,7 @@ impl<'a> SemanticAnalyzer<'a> {
             },
 
             Expression::Null { span } => {
-                return Some(Type::Null)
+                return Some(Type::Void)
             }
 
             Expression::FunctionCall { called, arguments, span } => {

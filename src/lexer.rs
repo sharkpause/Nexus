@@ -277,7 +277,7 @@ impl Lexer {
                     "return" => TokenKind::Return,
                     "function" => TokenKind::Function,
                     "int" => TokenKind::IntType,
-                    "null" => TokenKind::Null,
+                    "void" => TokenKind::Void,
                     "var" => TokenKind::Var,
                     "if" => TokenKind::If,
                     "else" => TokenKind::Else,

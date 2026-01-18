@@ -168,7 +168,7 @@ impl ASMCodeGenerator {
                         self.stack_size += 8;
                         stack_offset = self.stack_size - 8;
                     },
-                    Type::Null => {
+                    Type::Void => {
                         stack_offset = self.stack_size;       
                     }
                 }

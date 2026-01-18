@@ -140,12 +140,16 @@ impl Expression {
 #[derive(Debug, Clone)]
 pub enum Type {
     Int64,
-    Null
+    Void
 }
 
 impl Type {
     pub fn same_kind(&self, other: &Type) -> bool {
         return discriminant(self) == discriminant(other);
+    }
+
+    pub fn is_void(&self) -> bool {
+        return discriminant(self) == discriminant(&Type::Void );
     }
 }
 
@@ -218,9 +222,9 @@ impl Parser {
                 self.consume_token();
                 return Ok(Type::Int64);
             },
-            TokenKind::Null => {
+            TokenKind::Void => {
                 self.consume_token();
-                return Ok(Type::Null);
+                return Ok(Type::Void);
             }
             _ => Err(ParserError::UnexpectedToken(token.clone())),
         }
@@ -575,7 +579,7 @@ impl Parser {
                 Expression::IntLiteral64 { value, span }
             },
 
-            TokenKind::Null => {
+            TokenKind::Void => {
                 self.consume_token();
                 Expression::Null { span }
             },

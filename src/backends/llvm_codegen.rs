@@ -4,12 +4,19 @@ use crate::parser::{Expression, Operator, Statement, TopLevel, Type};
 use crate::backend::Backend;
 use crate::backend::CodegenError;
 
+struct FunctionContext {
+    return_type: Type,
+    entry_block: String,
+    current_block: String
+}
+
 pub struct LLVMCodeGenerator {
     ssa_counter: usize,
     block_counter: usize,
     loop_stack: Vec<(String, String)>,
-    variables: Vec<HashMap<String, String>>,
-    indent_level: usize
+    symbol_table: Vec<HashMap<String, String>>,
+    indent_level: usize,
+    current_function: Option<FunctionContext>
 }
 
 impl Default for LLVMCodeGenerator {
@@ -18,8 +25,9 @@ impl Default for LLVMCodeGenerator {
             ssa_counter: 1,
             block_counter: 0,
             loop_stack: Vec::new(),
-            variables: Vec::new(),
-            indent_level: 0
+            symbol_table: Vec::new(),
+            indent_level: 0,
+            current_function: None
         };
     }
 }
@@ -29,16 +37,16 @@ impl LLVMCodeGenerator {
         return "\t".repeat(self.indent_level);
     }
     
-    // pub fn enter_scope(&mut self) {
-    //     self.symbol_table.push(HashMap::new());
-    // }
+    fn enter_scope(&mut self) {
+        self.symbol_table.push(HashMap::new());
+    }
     
-    // pub fn exit_scope(&mut self) {
-    //     self.symbol_table.pop().expect("Scope underflow");
-    // }
+    fn exit_scope(&mut self) {
+        self.symbol_table.pop().expect("Scope underflow");
+    }
 
-    pub fn lookup_variable(&self, name: &str) -> Result<String, CodegenError> {
-        for scope in self.variables.iter().rev() {
+    fn lookup_variable(&self, name: &str) -> Result<String, CodegenError> {
+        for scope in self.symbol_table.iter().rev() {
             if let Some(ssa_name) = scope.get(name) {
                 return Ok(ssa_name.clone());
             }
@@ -47,72 +55,91 @@ impl LLVMCodeGenerator {
         return Err(CodegenError::UndefinedVariable(String::from(name)));
     }
 
-    // pub fn generate(&mut self, program: Vec<TopLevel>) -> Result<String, CodegenError> {
-    //     let mut output = String::from(
-    //         "define i64 @entry() {\n\
-    //         entry:\n"
-    //     );
+    fn add_variable(&mut self, name: &str, value: &str) -> Result<(), CodegenError> {
+        let scope = self.symbol_table
+            .last_mut()
+            .expect("Semantic analysis guarantees there's always an active scope here");
 
-    //     for toplevel in program {
-    //         match toplevel {
-    //             // TopLevel::Function(function) => {
-    //             //     self.stack_size = 8;
-    //             //     self.symbol_table.clear();
+        scope.insert(name.to_string(), value.to_string());
+    
+        return Ok(());
+    }
 
-    //             //     self.enter_scope();
+    fn map_function_type(&self, return_type: &Type) -> &'static str {
+        match return_type {
+            Type::Int64 => {
+                return "i64";
+            },
+            Type::Void => {
+                return "void";
+            }
+        }
+    }
+
+    pub fn generate(&mut self, program: Vec<TopLevel>) -> Result<String, CodegenError> {
+        let mut output = String::new();
+
+        for toplevel in program {
+            match toplevel {
+                TopLevel::Function(function) => {
+                    self.enter_scope();
                     
-    //             //     output.push_str(&format!("{}:\n", function.name));
+                    output.push_str(&format!(
+                        "{}define {} @{}(",
+                        self.indent(), self.map_function_type(&function.return_type), function.name
+                    ));
 
-    //             //     let mut parameter_code = String::new();
-    //             //     if function.parameters.len() > 0 {
-    //             //         for (index, (type_, name)) in function.parameters.iter().enumerate() {
-    //             //             self.stack_size += 8;
-    //             //             let offset = self.stack_size - 8;
+                    let mut parameter_code = String::new();
+                    if function.parameters.len() > 0 {                        
+                        for (index, (type_, name)) in function.parameters.iter().enumerate() {
+                            let type_llvm = self.map_function_type(type_);
+                            
+                            if index > 0 {
+                                output.push_str(", ");
+                            }
+                            
+                            output.push_str(&format!(
+                                "{} %{}",
+                                type_llvm, name
+                            ));
 
-    //             //             let current_scope = self.symbol_table.last_mut().expect("No active scope");
+                            let alloca_name = format!("%{}.addr", name);
 
-    //             //             current_scope.insert(name.clone(), offset);
+                            parameter_code.push_str(&format!(
+                                "{}{} = alloca {}\n",
+                                self.indent(), alloca_name, type_llvm
+                            ));
 
-    //             //             let register = match index {
-    //             //                 0 => "rdi",
-    //             //                 1 => "rsi",
-    //             //                 2 => "rdx",
-    //             //                 3 => "rcx",
-    //             //                 4 => "r8",
-    //             //                 5 => "r9",
-    //             //                 _ => unimplemented!("Stack arguments not supported"),
-    //             //             };
+                            parameter_code.push_str(&format!(
+                                "{}store {} %{}, {}* {}\n",
+                                self.indent(), type_llvm, name, type_llvm, alloca_name
+                            ));
 
-    //             //             parameter_code.push_str(&format!("\tmov [rbp - {}], {}\n", offset, register));
-    //             //         }
-    //             //     }
+                            self.add_variable(name, &alloca_name);
+                        }
+                    }
+                    
+                    output.push_str(") {\n");
+                    output.push_str(&format!("{}entry:\n", self.indent()));
 
-    //             //     let statements_code = self.generate_function_body(function.body)?;
+                    self.indent_level += 1;
 
-    //             //     // this ordering may look confusing but it's needed so self.stack_size
-    //             //     // is the correct amount of bytes
-    //             //     output.push_str(&format!(
-    //             //         "\tpush rbp\n\
-    //             //         \tmov rbp, rsp\n\
-    //             //         \tsub rsp, {}\n",
-    //             //         self.stack_size));
+                    output.push_str(&parameter_code);
+                    output.push_str(&self.generate_function_body(function.body)?);
 
-    //             //     output.push_str(&parameter_code);
+                    self.indent_level -= 1;
+                    output.push_str(&format!("{}}}\n", self.indent()));
 
-    //             //     output.push_str(&statements_code);
-
-    //             //     self.exit_scope();
-    //             // },
-    //             // TopLevel::Statement(statement) => {
-    //             //     let statement_code = self.generate_statement(statement)?;
-
-    //             //     output.push_str(&statement_code);
-    //             // }
-    //         }
+                    self.exit_scope();
+                },
+                TopLevel::Statement(statement) => {
+                    unreachable!("Semantic analysis guarantees statement is not allowed at the top level.");
+                }                
+            }
     //     }
 
-    //     return Ok(output);
-    // }
+        return Ok(output);
+    }
 
     // fn generate_function_body(&mut self, statement: Statement) -> Result<String, CodegenError> {
     //     match statement {
@@ -446,6 +473,7 @@ impl LLVMCodeGenerator {
         // }
 
         // return Ok(output);
+        }
     }
 
 }

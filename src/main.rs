@@ -12,8 +12,8 @@ use crate::token::print_token;
 use crate::lexer::{ Lexer, LexerError };
 use crate::parser::{ Parser, TopLevel, Statement, Expression, ParserError };
 use crate::backend::generate_program;
-use crate::backends::asm_codegen::ASMCodeGenerator;
-// use crate::backends::LLVMCodeGenerator;
+// use crate::backends::asm_codegen::ASMCodeGenerator;
+use crate::backends::llvm_codegen::LLVMCodeGenerator;
 
 fn read_file(path: &String) -> String {
     let source_code =
@@ -272,7 +272,14 @@ pub fn print_semantic_errors(diagnostics: &Diagnostics) {
                     "Semantic error at {}:{}, expected variable {} type of {:?} does not match the value's type of {:?}",
                     span.line, span.column, name, expected_type, provided_type
                 )
-            }
+            },
+
+            SemanticError::InvalidType { var_name, var_type, span } => {
+                eprintln!(
+                    "Semantic error at {}:{}, {:?} variable of type {:?} is not allowed",
+                    span.line, span.column, var_name, var_type
+                )
+            },
         }
     }
 }
@@ -302,7 +309,7 @@ fn main() {
     }
 
     let mut parser = Parser::from(tokens);
-    let program_tree = match parser.parse_program() {
+    let mut program_tree = match parser.parse_program() {
         Ok(program) => program,
         Err(e) => {
             match e {
@@ -339,7 +346,7 @@ fn main() {
         }
     }
 
-    let mut semantic_analyzer = SemanticAnalyzer::from(&program_tree);
+    let mut semantic_analyzer = SemanticAnalyzer::from(&mut program_tree);
     let diagnostics = semantic_analyzer.analyze();
 
     if diagnostics.has_errors() {
@@ -347,7 +354,7 @@ fn main() {
         return;
     }
 
-    let mut codegen_backend = ASMCodeGenerator::default();
+    let mut codegen_backend = LLVMCodeGenerator::default();
     let output = match generate_program(program_tree, &mut codegen_backend) {
         Ok(out) => out,
         Err(e) => {
