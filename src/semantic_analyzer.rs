@@ -250,6 +250,9 @@ impl<'a> SemanticAnalyzer<'a> {
 
     fn validate_tree(&mut self) {
         let mut program = std::mem::take(&mut self.program_tree);
+        // this is needed because this it needs to iterate through self.program_tree, so
+        // two errors can occur: A multiple mutable borrow and a mutable borrow after an immutable borrow
+        // this fixes that error because self.program_tree now is moved, no need for a borrow
         // fuck you borrow checker
 
         for toplevel in program.iter_mut() {
