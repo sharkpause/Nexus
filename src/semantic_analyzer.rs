@@ -298,8 +298,6 @@ impl<'a> SemanticAnalyzer<'a> {
     fn validate_statement(&mut self, statement: &mut Statement) {
         match statement {
             Statement::Return { value, span } => {
-                self.validate_expression(value);
-                
                 if let Some(value_type) = self.infer_expression_type(value) {
                     if !value_type.is_assignable_to(&self.current_return_type) {
                         self.push_error(SemanticError::MismatchedReturnType {
@@ -308,6 +306,8 @@ impl<'a> SemanticAnalyzer<'a> {
                             span: *span
                         });
                     }
+                
+                    self.validate_expression(value, Some(self.current_return_type.clone()));
                 }
             },
 
@@ -334,11 +334,11 @@ impl<'a> SemanticAnalyzer<'a> {
             },
 
             Statement::Expression { expression, span } => {
-                self.validate_expression(expression);
+                self.validate_expression(expression, None);
             },
 
             Statement::If { condition, then_branch, else_branch, span } => {
-                self.validate_expression(condition);
+                self.validate_expression(condition, None);
                 self.validate_statement(then_branch);
                 
                 if let Some(else_body) = else_branch {
@@ -347,7 +347,7 @@ impl<'a> SemanticAnalyzer<'a> {
             },
 
             Statement::VariableAssignment { name, value, span } => {
-                self.validate_expression(value);
+                self.validate_expression(value, None);
                         
                 if let Some(value_type) = self.infer_expression_type(value) {
                     if let Some(var_symbol) = self.lookup_variable(name) {
@@ -370,7 +370,7 @@ impl<'a> SemanticAnalyzer<'a> {
             }
 
             Statement::VariableDeclare { var_type, name, initializer, span } => {
-                self.validate_expression(initializer);
+                self.validate_expression(initializer, None);
 
                 if let Some(init_type) = self.infer_expression_type(initializer) {
                     if init_type.is_void() {
@@ -395,7 +395,7 @@ impl<'a> SemanticAnalyzer<'a> {
             Statement::While { condition, body, span } => {
                 self.loop_depth += 1;
 
-                self.validate_expression(condition);
+                self.validate_expression(condition, None);
                 self.validate_statement(body);
             
                 self.loop_depth -= 1;
@@ -459,7 +459,7 @@ impl<'a> SemanticAnalyzer<'a> {
     }
 
     // Returns true if an error occurred, false if success.
-    fn validate_expression(&mut self, expression: &mut Expression) -> Result<(), ()> {
+    fn validate_expression(&mut self, expression: &mut Expression, expected_type: Option<Type>) -> Result<(), ()> {
         match expression {
             Expression::Variable { name, type_, span } => {
                 if self.variable_exists(name, span) {
@@ -503,7 +503,7 @@ impl<'a> SemanticAnalyzer<'a> {
                 for (provided_argument, expected_argument) in
                     arguments.iter_mut().zip(expected_params.iter())
                 {
-                    self.validate_expression(provided_argument)?;
+                    self.validate_expression(provided_argument, expected_type.clone())?;
 
                     self.validate_argument(provided_argument, expected_argument);
                 }
@@ -527,22 +527,43 @@ impl<'a> SemanticAnalyzer<'a> {
             },
 
             Expression::BinaryOperation { left, operator, right, span } => {
-                self.validate_expression(left);
-                self.validate_expression(right);
+                self.validate_expression(left, expected_type.clone());
+                self.validate_expression(right, expected_type);
 
-                if let None = self.infer_expression_type(&expression)  {
+                let left_type = self.infer_expression_type(left)
+                    .ok_or_else(|| ())?;
+                let right_type = self.infer_expression_type(right)
+                    .ok_or_else(|| ())?;
+
+                if !left_type.same_kind(&right_type) {
+                    self.push_error(SemanticError::MismatchedBinaryOperationType { left_type, right_type, span: *span });
                     return Err(());
                 }
-
-
             },
 
             Expression::UnaryOperation { operator, operand, span } => {
-                self.validate_expression(operand);
+                self.validate_expression(operand, expected_type);
             },
 
             Expression::IntLiteral { value, span } => {
-                // yes
+                if let Some(some_expected_type) = expected_type {
+                    match some_expected_type {
+                        Type::Int32 => {
+                            *expression = Expression::IntLiteral32 { value: *value as i32, span: *span }
+                        },
+                        Type::Int64 => {
+                            *expression = Expression::IntLiteral64 { value: *value as i64, span: *span }
+                        },
+                        (ref type_) => {
+                            let provided_return_type = some_expected_type.clone();
+                            self.push_error(SemanticError::MismatchedReturnType {
+                                expected_return_type: some_expected_type,
+                                provided_return_type,
+                                span: *span
+                            });
+                        }
+                    }
+                }
             },
 
             Expression::IntLiteral32 { value, span } => {
@@ -615,7 +636,7 @@ impl<'a> SemanticAnalyzer<'a> {
                     }
                 }
 
-                self.validate_expression(provided_argument)?;
+                self.validate_expression(provided_argument, None)?;
             },
 
             Expression::UnaryOperation { operator, operand, span } => {
