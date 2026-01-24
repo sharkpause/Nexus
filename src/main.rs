@@ -54,7 +54,11 @@ fn print_statement(stmt: &Statement, indent: usize) {
     match stmt {
         Statement::Return { value, span } => {
             println!("{}Return:", padding);
-            print_expression(value, indent + 1);
+            if let Some(value_expression) = value {
+                print_expression(value_expression, indent + 1);
+            } else {
+                println!("Void type");
+            }
         }
 
         Statement::VariableDeclare {
@@ -154,10 +158,6 @@ fn print_expression(expr: &Expression, indent: usize) {
                 print_expression(arg, indent + 1);
             }
         },
-
-        Expression::Null { span } => {
-            println!("{}Null", padding);
-        }
 
         Expression::IntLiteral32 { value, span } => {
             println!("{} Int32 {}", padding, value);

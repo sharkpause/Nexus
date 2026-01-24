@@ -25,7 +25,7 @@ pub enum TopLevel {
 #[derive(Debug, Clone)]
 pub enum Statement {
     Return {
-        value: Expression,
+        value: Option<Expression>,
         span: Span,
     },
 
@@ -132,10 +132,6 @@ pub enum Expression {
         arguments: Vec<Expression>,
         span: Span,
     },
-
-    Null {
-        span: Span
-    }
 }
 
 impl Expression {
@@ -426,13 +422,13 @@ impl Parser {
 
                 match self.expect_token(&TokenKind::Semicolon) {
                     Ok(_) => {
-                        return Ok(Statement::Return { value: Expression::Null { span }, span });
+                        return Ok(Statement::Return { value: None, span });
                     },
                     Err(_) => {
                         let expression = self.parse_expression(0)?;
                         self.expect_token(&TokenKind::Semicolon);
 
-                        return Ok(Statement::Return { value: expression, span });   
+                        return Ok(Statement::Return { value: Some(expression), span });   
                     }
                 }
             }
@@ -609,11 +605,6 @@ impl Parser {
                 self.consume_token();
                 
                 Expression::IntLiteral { value, span }
-            },
-
-            TokenKind::VoidType => {
-                self.consume_token();
-                Expression::Null { span }
             },
 
             TokenKind::LeftParentheses => {

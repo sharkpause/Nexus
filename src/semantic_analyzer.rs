@@ -201,16 +201,6 @@ impl<'a> SemanticAnalyzer<'a> {
         }
     }
 
-    // fn validate_entry_functions(&mut self) {
-    //     if !self.function_exists("entry") {
-    //         self.push_error(SemanticError::NoEntryFunction);
-    //     }
-        
-    //     if let Some(main_function_span) = self.function_names.get("main") {
-    //         self.push_error(SemanticError::MainIsReserved { span: main_function_span.span });
-    //     }
-    // }
-
     fn enter_scope(&mut self) {
         self.symbol_table.push(HashMap::new());
     }
@@ -298,16 +288,25 @@ impl<'a> SemanticAnalyzer<'a> {
     fn validate_statement(&mut self, statement: &mut Statement) {
         match statement {
             Statement::Return { value, span } => {
-                if let Some(value_type) = self.infer_expression_type(value) {
-                    if !value_type.is_assignable_to(&self.current_return_type) {
-                        self.push_error(SemanticError::MismatchedReturnType {
-                            expected_return_type: self.current_return_type.clone(),
-                            provided_return_type: value_type,
-                            span: *span
-                        });
-                    }
+                let provided_type = match value {
+                    Some(expression) => match self.infer_expression_type(expression) {
+                        Some(t) => t,
+                        None => return, // error already pushed
+                    },
+                    None => Type::Void,
+                };
                 
-                    self.validate_expression(value, Some(self.current_return_type.clone()));
+                if !provided_type.is_assignable_to(&self.current_return_type) {
+                    self.push_error(SemanticError::MismatchedReturnType {
+                        expected_return_type: self.current_return_type.clone(),
+                        provided_return_type: provided_type,
+                        span: *span,
+                    });
+                    return;
+                }
+
+                if let Some(expr) = value {
+                    self.validate_expression(expr, Some(self.current_return_type.clone()));
                 }
             },
 
@@ -414,10 +413,6 @@ impl<'a> SemanticAnalyzer<'a> {
 
                 return Some(Type::GenericInt);
             },
-
-            Expression::Null { span } => {
-                return Some(Type::Void)
-            }
 
             Expression::FunctionCall { called, arguments, span } => {
                 let Expression::Variable { name: called_function_name, type_, span: function_span } = called.as_ref()
@@ -555,7 +550,7 @@ impl<'a> SemanticAnalyzer<'a> {
                             *expression = Expression::IntLiteral64 { value: *value as i64, span: *span }
                         },
                         (ref type_) => {
-                            let provided_return_type = some_expected_type.clone();
+                            let provided_return_type = type_.clone();
                             self.push_error(SemanticError::MismatchedReturnType {
                                 expected_return_type: some_expected_type,
                                 provided_return_type,
@@ -573,10 +568,6 @@ impl<'a> SemanticAnalyzer<'a> {
             Expression::IntLiteral64 { value, span } => {
                 // yes
             },
-
-            Expression::Null { span } => {
-                // yes
-            }
         }
 
         return Ok(());
@@ -640,20 +631,48 @@ impl<'a> SemanticAnalyzer<'a> {
             },
 
             Expression::UnaryOperation { operator, operand, span } => {
-todo!("implemnet ts");
+                self.validate_argument(operand, expected_argument)?;
             },
 
             Expression::IntLiteral32 { value, span } => {
-todo!("implemnet ts");
+                match &expected_argument.0 {
+                    Type::Int64 => {
+                        *provided_argument = Expression::IntLiteral64 { value: *value as i64, span: *span };
+                    },
+                    Type::Int32 => {
+                        // provided_argument is already an int32
+                    },
+                    (type_) => {
+                        self.push_error(SemanticError::MismatchedArgumentType {
+                            expected_type: type_.clone(),
+                            provided_type: Type::Int32,
+                            span: *span
+                        });
+                    }
+                }
             },
 
             Expression::IntLiteral64 { value, span } => {
-                todo!("implemnet ts");
+                match &expected_argument.0 {
+                    Type::Int64 => {
+                        // provided_argument is already an int32
+                    },
+                    Type::Int32 => {
+                        self.push_error(SemanticError::MismatchedArgumentType {
+                            expected_type: Type::Int32,
+                            provided_type: Type::Int64,
+                            span: *span
+                        });
+                    },
+                    (type_) => {
+                        self.push_error(SemanticError::MismatchedArgumentType {
+                            expected_type: type_.clone(),
+                            provided_type: Type::Int64,
+                            span: *span
+                        });
+                    }
+                }
             },
-
-            Expression::Null { span } => {
-todo!("implemnet ts");
-            }
         }
 
         return Ok(());

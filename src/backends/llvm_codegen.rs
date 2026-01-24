@@ -193,12 +193,24 @@ impl LLVMCodeGenerator {
                 let return_type = self.current_function.as_ref().expect("Function should be guaranteed to have a type").return_type.clone();
                 if return_type.is_void() {
                     statement_code.push_str(&format!("{}ret void\n", self.indent()));
+                    return Ok(statement_code);
                 }
 
-                let (expression_code, ssa_value) = self.generate_expression(&expression, Some(&return_type))?;
+                let (expression_code, ssa_value) = match expression {
+                    Some(expr) => {
+                        self.generate_expression(&expr, Some(&return_type))?
+                    }
+                    None => {
+                        // This should never happen if semantic analysis is correct
+                        unreachable!("Non-void function must return a value");
+                    }
+                };
 
                 statement_code.push_str(&expression_code);
-                statement_code.push_str(&format!("{}ret {} {}\n", self.indent(), self.map_type(&return_type), ssa_value));
+                statement_code.push_str(&format!(
+                    "{}ret {} {}\n",
+                    self.indent(), self.map_type(&return_type), ssa_value
+                ));
 
                 return Ok(statement_code);
             },
@@ -419,10 +431,6 @@ impl LLVMCodeGenerator {
 
             Expression::UnaryOperation { operator, operand, span } => {
                 todo!("implement this shit");
-            },
-
-            Expression::Null { span } => {
-                todo!("implement ts");
             },
 
             Expression::IntLiteral32 { value, span } => {
