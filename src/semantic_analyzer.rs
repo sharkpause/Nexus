@@ -453,7 +453,6 @@ impl<'a> SemanticAnalyzer<'a> {
         }
     }
 
-    // Returns true if an error occurred, false if success.
     fn validate_expression(&mut self, expression: &mut Expression, expected_type: Option<Type>) -> Result<(), ()> {
         match expression {
             Expression::Variable { name, type_, span } => {
