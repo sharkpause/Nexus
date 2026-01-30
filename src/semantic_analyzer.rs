@@ -738,10 +738,21 @@ impl<'a> SemanticAnalyzer<'a> {
             Expression::IntLiteral { value, span } => {
                 match target_type {
                     Type::Int32 => {
+                        println!("{}", *value);
+                        if *value < i32::MIN as i128 || *value > i32::MAX as i128 {
+                            self.push_error(SemanticError::IntegerOverflow { span: *span });
+                            return Err(());
+                        }
+
                         *expression = Expression::IntLiteral32 { value: *value as i32, span: *span };
                         return Ok(Type::Int32);
                     },
                     Type::Int64 => {
+                        if *value < i64::MIN as i128 || *value > i64::MAX as i128 {
+                            self.push_error(SemanticError::IntegerOverflow { span: *span });
+                            return Err(());
+                        }
+
                         *expression = Expression::IntLiteral64 { value: *value as i64, span: *span };
                         return Ok(Type::Int64);
                     },
