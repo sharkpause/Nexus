@@ -307,16 +307,24 @@ impl LLVMCodeGenerator {
                 let endif_label = format!("_if_end_{}", self.if_label_counter);
                 self.if_label_counter += 1;
 
-                // Evaluate condition
-                let (cond_code, cond_ssa) = self.generate_expression(&condition, None)?;
+                let (cond_code, cond_ssa) = self.generate_expression(&condition, Some(&Type::Int32))?;
                 code.push_str(&cond_code);
+
+                let cond_i1_ssa = format!("%{}", self.ssa_counter);
+                self.ssa_counter += 1;
+                code.push_str(&format!(
+                    "{}{} = icmp ne i32 {}, 0\n",
+                    self.indent(),
+                    cond_i1_ssa,
+                    cond_ssa
+                ));
 
                 // Branch based on condition
                 let else_target = if else_branch.is_some() { &else_label } else { &endif_label };
                 code.push_str(&format!(
                     "{}br i1 {}, label %{}, label %{}\n",
                     self.indent(),
-                    cond_ssa,
+                    cond_i1_ssa,
                     then_label,
                     else_target
                 ));
@@ -327,22 +335,40 @@ impl LLVMCodeGenerator {
                 code.push_str(&then_code);
 
                 // if then branch doesn't end with ret, branch to end
-                let then_ends_with_ret = then_code
+                let then_ends_with_terminator = then_code
                     .lines()
                     .rev()
                     .find(|line| !line.trim().is_empty())
-                    .map(|line| line.trim_start().starts_with("ret"))
+                    .map(|line| {
+                        let line = line.trim_start();
+                        line.starts_with("ret") || line.starts_with("br")
+                    })
                     .unwrap_or(false);
 
-                if !then_ends_with_ret {
+                if !then_ends_with_terminator {
                     code.push_str(&format!("{}br label %{}\n", self.indent(), endif_label));
                 }
 
                 // Else block
                 if let Some(else_stmt) = else_branch {
                     code.push_str(&format!("{}:\n", else_label));
-                    code.push_str(&self.generate_statement(*else_stmt)?);
-                    code.push_str(&format!("{}br label %{}\n", self.indent(), endif_label));
+
+                    let else_code = self.generate_statement(*else_stmt)?;
+                    code.push_str(&else_code);
+                    
+                    let else_ends_with_terminator = else_code
+                        .lines()
+                        .rev()
+                        .find(|line| !line.trim().is_empty())
+                        .map(|line| {
+                            let line = line.trim_start();
+                            line.starts_with("ret") || line.starts_with("br")
+                        })
+                        .unwrap_or(false);
+
+                    if !else_ends_with_terminator {
+                        code.push_str(&format!("{}br label %{}\n", self.indent(), endif_label));
+                    }
                 }
 
                 // End label
@@ -368,14 +394,22 @@ impl LLVMCodeGenerator {
 
                 // Condition block
                 code.push_str(&format!("{}:\n", cond_label));
-                let (cond_code, cond_ssa) = self.generate_expression(&condition, None)?;
-                
+                let (cond_code, cond_ssa) = self.generate_expression(&condition, Some(&Type::Int32))?;
                 code.push_str(&cond_code);
+
+                let cond_i1_ssa = format!("%{}", self.ssa_counter);
+                self.ssa_counter += 1;
+                code.push_str(&format!(
+                    "{}{} = icmp ne i32 {}, 0\n",
+                    self.indent(),
+                    cond_i1_ssa,
+                    cond_ssa
+                ));
 
                 code.push_str(&format!(
                     "{}br i1 {}, label %{}, label %{}\n",
                     self.indent(),
-                    cond_ssa,
+                    cond_i1_ssa,
                     body_label,
                     end_label
                 ));
