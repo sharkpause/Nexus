@@ -57,7 +57,7 @@ fn print_statement(stmt: &Statement, indent: usize) {
             if let Some(value_expression) = value {
                 print_expression(value_expression, indent + 1);
             } else {
-                println!("Void type");
+                println!("{}Void type", padding);
             }
         }
 
@@ -307,6 +307,20 @@ pub fn print_semantic_errors(diagnostics: &Diagnostics) {
                 eprintln!(
                     "Semantic error at {}:{}, provided argument type of {:?} did not match expected type of {:?}",
                     span.line, span.column, provided_type, expected_type
+                )
+            },
+
+            SemanticError::MismatchedAssignmentType { expected_type, provided_type, span } => {
+                eprintln!(
+                    "Semantic error at {}:{}, provided argument type of {:?} did not match expected type of {:?}",
+                    span.line, span.column, provided_type, expected_type
+                )
+            },
+
+            SemanticError::InvalidTypeWidening { from_type, to_type, span } => {
+                eprintln!(
+                    "Semantic error at {}:{}, widening from {:?} to {:?} is not allowed",
+                    span.line, span.column, from_type, to_type
                 )
             }
         }

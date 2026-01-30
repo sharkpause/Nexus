@@ -172,6 +172,7 @@ impl Type {
         match (self, other) {
             (Type::GenericInt, t) if t.is_integer() => true,
             (t, Type::GenericInt) if t.is_integer() => true,
+            (Type::Int32, Type::Int64) => true,
             (a, b) => a.same_kind(b)
         }
     }

@@ -5,4 +5,5 @@ main
 out
 .vscode/
 src/test.molb
-src/out.ll
+src/out.*
+Cargo.lock

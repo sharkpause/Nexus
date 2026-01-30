@@ -367,7 +367,6 @@ impl LLVMCodeGenerator {
                 let mut argument_ssas: Vec<String> = Vec::new();
 
                 for argument in arguments {
-                    println!("\n\n{:?}\n\n", argument);
                     let generated_expression = self.generate_expression(argument, expected_type)?;
                 
                     code.push_str(&generated_expression.0);
