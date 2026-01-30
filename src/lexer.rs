@@ -248,7 +248,8 @@ impl Lexer {
                         break;
                     }
                 }
-
+                
+                // TODO: when the literal is over 128 bits, it returns an unexpectedchar instead of overflow
                 let number = token.parse().map_err(|_| LexerError::UnexpectedChar {
                     character: token.chars().last().unwrap_or(' '),
                     line: start_line,
