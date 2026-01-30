@@ -7,3 +7,5 @@ out
 src/test.nex
 src/out.*
 Cargo.lock
+src/a.out
+src/optimized.ll
