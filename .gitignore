@@ -4,6 +4,6 @@ main
 *.o
 out
 .vscode/
-src/test.molb
+src/test.nex
 src/out.*
 Cargo.lock
