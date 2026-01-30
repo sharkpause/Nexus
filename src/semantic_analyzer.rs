@@ -325,7 +325,7 @@ impl<'a> SemanticAnalyzer<'a> {
                     // No race condition will happen because validate_expression does not do any additional operations
                     // on the expressions inside generics.
 
-                    provided_type = match self.cast_to_default_types(generic_typed_expression, &return_type) {
+                    provided_type = match self.cast_generic_type_to_default(generic_typed_expression, &return_type) {
                         Ok(t) => t,
                         Err(_) => return, // error already pushed
                     }
@@ -386,29 +386,49 @@ impl<'a> SemanticAnalyzer<'a> {
 
             Statement::VariableAssignment { name, value, span } => {
                 self.validate_expression(value, &mut None);
-                        
-                if let Some(value_type) = self.infer_expression_type(value) {
-                    if let Some(var_symbol) = self.lookup_variable(name) {
-                        if var_symbol.var_type.is_void() {
-                            self.push_error(SemanticError::InvalidType {
-                                var_name: name.clone(),
-                                var_type: Type::Void,
+                
+                let var_symbol_type: Type;
+                {
+                    let Some(value_type) = self.infer_expression_type(value)
+                        else { return }; // error already pushed
+                    
+                    let Some(var_symbol) = self.lookup_variable(name)
+                        else {
+                            self.push_error(SemanticError::UndefinedVariable {
+                                name: name.clone(),
                                 span: *span
                             });
-                        } else if !var_symbol.var_type.is_assignable_to(&value_type) {
-                            self.push_error(SemanticError::MismatchedVariableType {
-                                name: name.clone(),
-                                expected_type: var_symbol.var_type.clone(),
-                                provided_type: value_type,
-                                span: *span,
-                            });
-                        }
+                            return;
+                        };
+                            
+                    if var_symbol.var_type.is_void() {
+                        self.push_error(SemanticError::InvalidType {
+                            var_name: name.clone(),
+                            var_type: Type::Void,
+                            span: *span
+                        });
+
+                        return;
+                    } else if !var_symbol.var_type.is_assignable_to(&value_type) {
+                        self.push_error(SemanticError::MismatchedVariableType {
+                            name: name.clone(),
+                            expected_type: var_symbol.var_type.clone(),
+                            provided_type: value_type,
+                            span: *span,
+                        });
+
+                        return;
                     }
+
+                    var_symbol_type = var_symbol.var_type.clone();
                 }
+
+                self.cast_generic_type_to_default(value, &var_symbol_type);
             }
 
             Statement::VariableDeclare { var_type, name, initializer, span } => {
                 self.validate_expression(initializer, &mut None);
+                self.cast_generic_type_to_default(initializer, var_type);
 
                 if let Some(init_type) = self.infer_expression_type(initializer) {
                     if init_type.is_void() {
@@ -733,7 +753,7 @@ impl<'a> SemanticAnalyzer<'a> {
         return Ok(());
     }
 
-    fn cast_to_default_types(&mut self, expression: &mut Expression, target_type: &Type) -> Result<Type, ()> {
+    fn cast_generic_type_to_default(&mut self, expression: &mut Expression, target_type: &Type) -> Result<Type, ()> {
         match expression {
             Expression::IntLiteral { value, span } => {
                 match target_type {
@@ -781,8 +801,8 @@ impl<'a> SemanticAnalyzer<'a> {
             },
 
             Expression::BinaryOperation { left, right, span, .. } => {
-                self.cast_to_default_types(left, target_type);
-                self.cast_to_default_types(right, target_type);
+                self.cast_generic_type_to_default(left, target_type);
+                self.cast_generic_type_to_default(right, target_type);
 
                 let left_type = self.infer_expression_type(left);
                 let right_type = self.infer_expression_type(right);
@@ -803,7 +823,7 @@ impl<'a> SemanticAnalyzer<'a> {
                 return Err(());
             },
             Expression::UnaryOperation { operand, .. } => {
-                return self.cast_to_default_types(operand, target_type);
+                return self.cast_generic_type_to_default(operand, target_type);
             },
 
             Expression::FunctionCall { called, arguments, .. } => {
