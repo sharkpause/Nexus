@@ -738,7 +738,6 @@ impl<'a> SemanticAnalyzer<'a> {
             Expression::IntLiteral { value, span } => {
                 match target_type {
                     Type::Int32 => {
-                        println!("{}", *value);
                         if *value < i32::MIN as i128 || *value > i32::MAX as i128 {
                             self.push_error(SemanticError::IntegerOverflow { span: *span });
                             return Err(());
@@ -845,63 +844,63 @@ impl<'a> SemanticAnalyzer<'a> {
                 }
             }
 
-            // -------- variables --------
             Expression::Variable { .. } => {
                 // Variables are already typed.
                 // Widening variables would require IR-level casts,
                 // not AST mutation.
             }
 
-            // -------- binary ops --------
             Expression::BinaryOperation { left, right, span, .. } => {
                 // First widen children
                 self.widen_expression(left, target_type);
                 self.widen_expression(right, target_type);
 
-                // Then ensure result type is valid
-                let left_type = match self.infer_expression_type(left) {
-                    Some(t) => t,
-                    None => return,
-                };
+                // let left_type = match self.infer_expression_type(left) {
+                //     Some(t) => t,
+                //     None => return,
+                // };
 
-                let right_type = match self.infer_expression_type(right) {
-                    Some(t) => t,
-                    None => return,
-                };
+                // let right_type = match self.infer_expression_type(right) {
+                //     Some(t) => t,
+                //     None => return,
+                // };
 
-                if !left_type.is_assignable_to(target_type)
-                    || !right_type.is_assignable_to(target_type)
-                {
-                    self.push_error(SemanticError::InvalidTypeWidening {
-                        from_type: left_type,
-                        to_type: target_type.clone(),
-                        span: *span,
-                    });
-                }
+                // if !left_type.is_assignable_to(target_type)
+                //     || !right_type.is_assignable_to(target_type)
+                // {
+                //     self.push_error(SemanticError::InvalidTypeWidening {
+                //         from_type: left_type,
+                //         to_type: target_type.clone(),
+                //         span: *span,
+                //     });
+                // }
             }
 
-            // -------- unary ops --------
             Expression::UnaryOperation { operand, .. } => {
                 self.widen_expression(operand, target_type);
             }
 
-            // -------- function calls --------
             Expression::FunctionCall { .. } => {
                 // Function calls already carry a return type.
                 // If the call returns int32 and target is int64,
                 // this widening must happen during codegen, not AST.
             }
 
-            // -------- generic int (should not survive this phase) --------
             Expression::IntLiteral { value, span } => {
                 match target_type {
                     Type::Int32 => {
+                        if *value > i32::MAX as i128 || *value < i32::MIN as i128 {
+                            self.push_error(SemanticError::IntegerOverflow { span: *span });
+                        }
                         *expression = Expression::IntLiteral32 {
                             value: *value as i32,
                             span: *span,
                         };
                     }
                     Type::Int64 => {
+                        if *value > i64::MAX as i128 || *value < i64::MIN as i128 {
+                            self.push_error(SemanticError::IntegerOverflow { span: *span });
+                        }
                         *expression = Expression::IntLiteral64 {
                             value: *value as i64,
                             span: *span,
