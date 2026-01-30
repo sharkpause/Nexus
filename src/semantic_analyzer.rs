@@ -301,6 +301,13 @@ impl<'a> SemanticAnalyzer<'a> {
         match statement {
             Statement::Return { value, span } => {
                 let return_type = self.current_return_type.clone();
+                
+                // We use raw pointers because "generics" needs to hold mutable references to the expressions
+                // if we used &mut Expresion because I'm pretty sure the borrow checker,
+                // even after validate_expression is done with the mutable references to the expressions
+                // still treats the expressions as still being borrowed even though no additional operations
+                // are being done on the expressions after validate_expression. So a raw pointer is needed
+                // to bypass the borrow checker and mutate the expressions.
                 let mut generics: Vec<*mut Expression> = Vec::new();
 
                 let mut provided_type = if let Some(expression) = value {
@@ -314,6 +321,10 @@ impl<'a> SemanticAnalyzer<'a> {
 
                 for generic_typed_expression_pointer in generics {
                     let generic_typed_expression: &mut Expression = unsafe { &mut *generic_typed_expression_pointer };
+                    // This is safe, expression is not mutated anymore after validate_expression.
+                    // No race condition will happen because validate_expression does not do any additional operations
+                    // on the expressions inside generics.
+
                     provided_type = match self.cast_to_default_types(generic_typed_expression, &return_type) {
                         Ok(t) => t,
                         Err(_) => return, // error already pushed
