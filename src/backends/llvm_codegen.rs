@@ -81,6 +81,39 @@ impl LLVMCodeGenerator {
         }
     }
 
+    fn infer_expression_type(&mut self, expression: &Expression) -> Type {
+        return match expression {
+            Expression::IntLiteral { .. } => Type::GenericInt, // Might change this to either panic or unreachable
+            Expression::IntLiteral32 { .. } => Type::Int32,
+            Expression::IntLiteral64 { .. } => Type::Int64,
+
+            Expression::Variable { type_, .. } => {
+                type_.clone().expect("Variable must have type from semantic analysis")
+            },
+
+            Expression::BinaryOperation { left, right, .. } => {
+                let left_type = self.infer_expression_type(left);
+                let right_type = self.infer_expression_type(right);
+
+                if left_type.same_kind(&right_type) {
+                    left_type
+                } else {
+                    panic!("Mismatched types in codegen, should have been caught in semantic analysis");
+                }
+            }
+
+            Expression::UnaryOperation { operand, .. } => self.infer_expression_type(operand),
+
+            Expression::FunctionCall { called, .. } => {
+                let Expression::Variable { type_, .. } = called.as_ref()
+                    else { unreachable!("Function call must have a variable callee") };
+                type_.clone().expect("Function must have return type from semantic analysis")
+            },
+
+            _ => panic!("Expression type inference not implemented for this variant"),
+        };
+    }
+
     pub fn generate(&mut self, program: Vec<TopLevel>) -> Result<String, CodegenError> {
         let mut output = String::new();
 
@@ -125,6 +158,7 @@ impl LLVMCodeGenerator {
 
                             self.add_variable(name, type_.clone(), &alloca_name);
                         }
+                        parameter_code.push_str("\n");
                     }
                     
                     output.push_str(") {\n");
@@ -328,23 +362,24 @@ impl LLVMCodeGenerator {
     fn generate_expression(&mut self, expression: &Expression, expected_type: Option<&Type>) -> Result<(String, String), CodegenError> {
         match expression {
             Expression::IntLiteral { value, span } => {
-                let some_expected_type = expected_type.expect("An expected type must be passed at this point");
-                let ssa_type = match some_expected_type {
-                    Type::Int32 => "i32",
-                    Type::Int64 => "i64",
-                    _ => {
-                        unreachable!("Semantic analysis guarantees correct typing")
-                    }
-                };
+                // let some_expected_type = expected_type.expect("An expected type must be passed at this point");
+                // let ssa_type = match some_expected_type {
+                //     Type::Int32 => "i32",
+                //     Type::Int64 => "i64",
+                //     _ => {
+                //         unreachable!("Semantic analysis guarantees correct typing")
+                //     }
+                // };
                 
-                let ssa = format!("%{}", self.ssa_counter);
-                let code = format!(
-                    "{}{} = add {} 0, {}\n",
-                    self.indent(), ssa, ssa_type, value
-                );
+                // let ssa = format!("%{}", self.ssa_counter);
+                // let code = format!(
+                //     "{}{} = add {} 0, {}\n",
+                //     self.indent(), ssa, ssa_type, value
+                // );
             
-                self.ssa_counter += 1;
-                return Ok((code, ssa));
+                // self.ssa_counter += 1;
+                // return Ok((code, ssa));
+                return Err(CodegenError::InvalidType);
             },
 
             Expression::Variable { name, type_, span } => {
@@ -365,20 +400,29 @@ impl LLVMCodeGenerator {
             Expression::FunctionCall { called, arguments, span } => {
                 let mut code = String::new();
                 let mut argument_ssas: Vec<String> = Vec::new();
+                let mut argument_types: Vec<Type> = Vec::new();
 
                 for argument in arguments {
                     let generated_expression = self.generate_expression(argument, expected_type)?;
+                    argument_types.push(
+                        self.infer_expression_type(argument)
+                    );
                 
                     code.push_str(&generated_expression.0);
                     argument_ssas.push(generated_expression.1);
+                    
                 }
 
                 let Expression::Variable { name: function_name, type_: return_type, span } = called.as_ref()
                     else { unreachable!("Expression is guaranteed to be a variable") };
 
-                let argument_code = argument_ssas
-                    .into_iter()
-                    .map(|ssa| format!("{}", ssa))
+                let argument_code = argument_types
+                    .iter()
+                    .zip(argument_ssas)
+                    .map(
+                        |(arg_type, arg_ssa)|
+                        format!("{} {}", self.map_type(arg_type), arg_ssa)
+                    )
                     .collect::<Vec<_>>()
                     .join(", ");
 
@@ -387,7 +431,7 @@ impl LLVMCodeGenerator {
                 match return_type {
                     Some(type_) => {
                         code.push_str(&format!(
-                            "{}{} = call {} @{}({})",
+                            "{}{} = call {} @{}({})\n",
                             self.indent(), function_call_ssa, self.map_type(type_), function_name, argument_code
                         ));
                     },
@@ -413,14 +457,16 @@ impl LLVMCodeGenerator {
                 };
 
                 let mut code = String::new();
+                let ssa_type = expected_type.expect("Semantic analysis should guarantee a type here");
 
                 code.push_str(&left_code);
                 code.push_str(&right_code);
                 code.push_str(&format!(
-                    "{}{} = {} i64 {}, {}\n",
+                    "{}{} = {} {} {}, {}\n",
                     self.indent(),
                     ssa,
                     operator_code,
+                    self.map_type(ssa_type),
                     left_ssa,
                     right_ssa
                 ));
@@ -433,11 +479,25 @@ impl LLVMCodeGenerator {
             },
 
             Expression::IntLiteral32 { value, span } => {
-                todo!("Implement ts");
+                let ssa = format!("%{}", self.ssa_counter);
+                let code = format!(
+                    "{}{} = add i32 0, {}\n",
+                    self.indent(), ssa, value
+                );
+                self.ssa_counter += 1;
+
+                return Ok((code, ssa));
             },
 
             Expression::IntLiteral64 { value, span } => {
-                todo!("Implement ts");
+                let ssa = format!("%{}", self.ssa_counter);
+                let code = format!(
+                    "{}{} = add i64 0, {}\n",
+                    self.indent(), ssa, value
+                );
+                self.ssa_counter += 1;
+
+                return Ok((code, ssa));
             },
 
             // _ => {
