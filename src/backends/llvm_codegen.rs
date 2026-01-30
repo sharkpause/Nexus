@@ -447,34 +447,143 @@ impl LLVMCodeGenerator {
                 let (left_code, left_ssa) = self.generate_expression(left, expected_type)?;
                 let (right_code, right_ssa) = self.generate_expression(right, expected_type)?;
 
-                let ssa = format!("%{}", self.ssa_counter);
-                self.ssa_counter += 1;
-
-                let operator_code = match operator {
-                    Operator::Add => "add",
-                    Operator::Subtract => "sub",
-                    Operator::Multiply => "mul",
-                    Operator::Divide => "sdiv",
-                    _ => unimplemented!("Other operators not yet"),
-                };
-
                 let mut code = String::new();
-                let ssa_type = expected_type.expect("Semantic analysis should guarantee a type here");
-
                 code.push_str(&left_code);
                 code.push_str(&right_code);
-                code.push_str(&format!(
-                    "{}{} = {} {} {}, {}\n",
-                    self.indent(),
-                    ssa,
-                    operator_code,
-                    self.map_type(ssa_type),
-                    left_ssa,
-                    right_ssa
-                ));
+
+                let mut ssa: String;
+
+                match operator {
+                    // Arithmetic operators remain the same
+                    Operator::Add | Operator::Subtract | Operator::Multiply | Operator::Divide => {
+                        let op_str = match operator {
+                            Operator::Add => "add",
+                            Operator::Subtract => "sub",
+                            Operator::Multiply => "mul",
+                            Operator::Divide => "sdiv",
+                            _ => unreachable!(),
+                        };
+                        
+                        ssa = format!("%{}", self.ssa_counter);
+                        self.ssa_counter += 1;
+                        
+                        let ssa_type = expected_type.expect("Semantic analysis should guarantee a type here");
+                        
+                        code.push_str(&format!(
+                            "{}{} = {} {} {}, {}\n",
+                            self.indent(),
+                            ssa,
+                            op_str,
+                            self.map_type(ssa_type),
+                            left_ssa,
+                            right_ssa
+                        ));
+                    }
+
+                    // Comparisons
+                    Operator::Equal | Operator::NotEqual | Operator::LessThan
+                    | Operator::GreaterThan | Operator::LessEqual | Operator::GreaterEqual => {
+                        let cmp_str = match operator {
+                            Operator::Equal => "eq",
+                            Operator::NotEqual => "ne",
+                            Operator::LessThan => "slt",
+                            Operator::GreaterThan => "sgt",
+                            Operator::LessEqual => "sle",
+                            Operator::GreaterEqual => "sge",
+                            _ => unreachable!(),
+                        };
+
+                        let cmp_ssa = format!("%{}", self.ssa_counter);
+                        self.ssa_counter += 1;
+                        code.push_str(&format!(
+                            "{}{} = icmp {} i32 {}, {}\n",
+                            self.indent(),
+                            cmp_ssa,
+                            cmp_str,
+                            left_ssa,
+                            right_ssa
+                        ));
+
+                        ssa = format!("%{}", self.ssa_counter);
+                        self.ssa_counter += 1;
+                        
+                        if let Some(expected) = expected_type {
+                            // Converts i1 to expected type in cases where the result is stored
+                            // or returned.
+
+                            code.push_str(&format!(
+                                "{}{} = zext i1 {} to {}\n",
+                                self.indent(),
+                                ssa,
+                                cmp_ssa,
+                                self.map_type(expected)
+                            ));
+                        } else {
+                            // If no type are expected, no conversion needs to happen
+                            ssa = cmp_ssa;
+                        }
+                    }
+
+                    // Logical operators && and ||
+                    Operator::And | Operator::Or => {
+                        // Convert operands to i1 first since LLVM needs i1 for both operands
+                        // for logical operators.
+
+                        let left_bool = format!("%{}", self.ssa_counter);
+                        self.ssa_counter += 1;
+                        code.push_str(&format!(
+                            "{}{} = icmp ne i32 {}, 0\n",
+                            self.indent(),
+                            left_bool,
+                            left_ssa
+                        ));
+
+                        let right_bool = format!("%{}", self.ssa_counter);
+                        self.ssa_counter += 1;
+                        code.push_str(&format!(
+                            "{}{} = icmp ne i32 {}, 0\n",
+                            self.indent(),
+                            right_bool,
+                            right_ssa
+                        ));
+
+                        ssa = format!("%{}", self.ssa_counter);
+                        self.ssa_counter += 1;
+
+                        let op_str = match operator {
+                            Operator::And => "and",
+                            Operator::Or => "or",
+                            _ => unreachable!(),
+                        };
+
+                        code.push_str(&format!(
+                            "{}{} = {} i1 {}, {}\n",
+                            self.indent(),
+                            ssa,
+                            op_str,
+                            left_bool,
+                            right_bool
+                        ));
+
+                        if let Some(expected) = expected_type {
+                            let zext_ssa = format!("%{}", self.ssa_counter);
+                            self.ssa_counter += 1;
+                            code.push_str(&format!(
+                                "{}{} = zext i1 {} to {}\n",
+                                self.indent(),
+                                zext_ssa,
+                                ssa,
+                                self.map_type(expected)
+                            ));
+                            ssa = zext_ssa;
+                        }
+                    }
+
+                    _ => unimplemented!("Other operators not yet"),
+                }
 
                 return Ok((code, ssa));
-            },
+            }
 
             Expression::UnaryOperation { operator, operand, span } => {
                 let (operand_code, operand_ssa) = self.generate_expression(operand, expected_type)?;
