@@ -123,6 +123,8 @@ impl Lexer {
                         column,
                     });
                 } else {
+                    self.consume_char();
+
                     return Some(Token {
                         kind: TokenKind::Not,
                         line,
@@ -295,7 +297,9 @@ impl Lexer {
             // --- handle operators / symbols ---
             if let Some(token) = self.double_char_token() {
                 return Ok(token);
-            } else if let Some(token) = self.single_char_token() {
+            }
+
+            if let Some(token) = self.single_char_token() {
                 return Ok(token);
             }
 

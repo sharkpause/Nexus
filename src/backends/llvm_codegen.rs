@@ -379,6 +379,8 @@ impl LLVMCodeGenerator {
             
                 // self.ssa_counter += 1;
                 // return Ok((code, ssa));
+
+                // Invalid type because semantic analysis should eliminate all generics
                 return Err(CodegenError::InvalidType);
             },
 
@@ -475,8 +477,40 @@ impl LLVMCodeGenerator {
             },
 
             Expression::UnaryOperation { operator, operand, span } => {
-                todo!("implement this shit");
-            },
+                let (operand_code, operand_ssa) = self.generate_expression(operand, expected_type)?;
+                let operand_type = self.infer_expression_type(operand);
+
+                let ssa = format!("%{}", self.ssa_counter);
+                self.ssa_counter += 1;
+
+                let code = match operator {
+                    Operator::Subtract => {
+                        format!(
+                            "{}\n{}{} = sub {} 0, {}\n",
+                            operand_code, 
+                            self.indent(),
+                            ssa,
+                            self.map_type(&operand_type),
+                            operand_ssa
+                        )
+                    },
+                    
+                    Operator::Not => {
+                        let tmp_ssa = format!("%tmp{}", self.ssa_counter);
+                        self.ssa_counter += 1;
+
+                        format!(
+                            "{}\n{}{} = icmp eq {} {}, 0\n{}{} = zext i1 {} to {}\n",
+                            operand_code,
+                            self.indent(), tmp_ssa, self.map_type(&operand_type), operand_ssa,
+                            self.indent(), ssa, tmp_ssa, self.map_type(&operand_type)
+                        )
+                    },
+                    _ => unimplemented!("Other unary operators not implemented yet"),
+                };
+
+                return Ok((code, ssa));
+            }
 
             Expression::IntLiteral32 { value, span } => {
                 let ssa = format!("%{}", self.ssa_counter);
@@ -499,141 +533,7 @@ impl LLVMCodeGenerator {
 
                 return Ok((code, ssa));
             },
-
-            // _ => {
-            //     return Err(CodegenError::UnknownExpression);
-            // }
         }
-        
-        // let mut output = String::new();
-
-        // match expression {
-        //     Expression::FunctionCall{ callee: name, arguments } => {
-        //         for (index, argument) in arguments.iter().enumerate() {
-        //             output.push_str(&self.generate_expression(argument)?);
-
-        //             let register = match index {
-        //                 0 => "rdi",
-        //                 1 => "rsi",
-        //                 2 => "rdx",
-        //                 3 => "rcx",
-        //                 4 => "r8",
-        //                 5 => "r9",
-        //                 _ => unimplemented!("Stack arguments are not supported yet"),
-        //             };
-
-        //             output.push_str(&format!("\tmov {}, rax\n", register));
-        //         }
-
-        //         let function_name = match &**name {
-        //             Expression::Variable{ name } => {
-        //                 name
-        //             },
-        //             _ => {
-        //                 return Err(CodegenError::GenericError);
-        //             }
-        //         };
-
-        //         output.push_str(&format!("\tcall {}\n", function_name));
-        //     },
-        //     Expression::Variable{ name } => {
-        //         let offset = self.lookup_variable(&name)?;
-
-        //         output.push_str(&format!("\tmov rax, [rbp - {}]\n", offset));
-        //     },
-        //     Expression::IntLiteral{ value } => {
-        //         output.push_str(&format!("\tmov rax, {}\n", value));
-        //     },
-        //     Expression::UnaryOperation{ operator, operand: inner } => {
-        //         output.push_str(&self.generate_expression(inner)?);
-        //         output.push_str("\tneg rax\n");
-        //     },
-        //     Expression::BinaryOperation{ left: lhs,operator ,right: rhs } => {
-        //         let left = self.generate_expression(lhs)?;
-        //         output.push_str(&left);
-        //         output.push_str("\tpush rax\n");
-
-        //         let right = self.generate_expression(rhs)?;
-        //         output.push_str(&right);
-        //         output.push_str("\tpop rcx\n");
-
-        //         match operator {
-        //             Operator::Add => {
-        //                 output.push_str("\tadd rcx, rax\n");
-        //                 output.push_str("\tmov rax, rcx\n");
-        //             },
-        //             Operator::Subtract => {
-        //                 output.push_str("\tsub rcx, rax\n");
-        //                 output.push_str("\tmov rax, rcx\n");
-        //             },
-        //             Operator::Multiply => {
-        //                 output.push_str("\timul rcx, rax\n");
-        //                 output.push_str("\tmov rax, rcx\n");
-        //             },
-        //             Operator::Divide => {
-        //                 output.push_str("\txchg rax, rcx\n");
-        //                 output.push_str("\txor rdx, rdx\n");
-        //                 output.push_str("\tidiv rcx\n");
-        //             },
-        //             Operator::Equal => {
-        //                 output.push_str("\tcmp rcx, rax\n");
-        //                 output.push_str("\tsete al\n");
-        //                 output.push_str("\tmovzx rax, al\n");
-        //             },
-        //             Operator::NotEqual => {
-        //                 output.push_str("\tcmp rcx, rax\n");
-        //                 output.push_str("\tsetne al\n");
-        //                 output.push_str("\tmovzx rax, al\n");
-        //             },
-        //             Operator::LessThan => {
-        //                 output.push_str("\tcmp rcx, rax\n");
-        //                 output.push_str("\tsetl al\n");
-        //                 output.push_str("\tmovzx rax, al\n");
-        //             },
-        //             Operator::LessEqual => {
-        //                 output.push_str("\tcmp rcx, rax\n");
-        //                 output.push_str("\tsetle al\n");
-        //                 output.push_str("\tmovzx rax, al\n");
-        //             },
-        //             Operator::GreaterThan => {
-        //                 output.push_str("\tcmp rcx, rax\n");
-        //                 output.push_str("\tsetg al\n");
-        //                 output.push_str("\tmovzx rax, al\n");
-        //             },
-        //             Operator::GreaterEqual => {
-        //                 output.push_str("\tcmp rcx, rax\n");
-        //                 output.push_str("\tsetge al\n");
-        //                 output.push_str("\tmovzx rax, al\n");
-        //             },
-        //             Operator::And => {
-        //                 output.push_str("\tcmp rcx, 0\n");
-        //                 output.push_str("\tsetne cl\n");
-        //                 output.push_str("\tcmp rax, 0\n");
-        //                 output.push_str("\tsetne al\n");
-        //                 output.push_str("\tand al, cl\n");
-        //                 output.push_str("\tmovzx rax, al\n");
-        //             },
-        //             Operator::Or => {
-        //                 output.push_str("\tcmp rcx, 0\n");
-        //                 output.push_str("\tsetne cl\n");
-        //                 output.push_str("\tcmp rax, 0\n");
-        //                 output.push_str("\tsetne al\n");
-        //                 output.push_str("\tor al, cl\n");
-        //                 output.push_str("\tmovzx rax, al\n");
-        //             },
-        //             Operator::Not => {
-        //                 output.push_str("\tcmp rax, 0\n");
-        //                 output.push_str("\tsete al\n");
-        //                 output.push_str("\tmovzx rax, al\n");
-        //             },
-        //             _ => {
-        //                 return Err(CodegenError::GenericError);
-        //             }
-        //         }
-        //     }
-        // }
-
-        // return Ok(output);
     }
 }
 
