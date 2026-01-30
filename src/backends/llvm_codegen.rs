@@ -20,7 +20,9 @@ pub struct LLVMCodeGenerator {
     loop_stack: Vec<(String, String)>,
     symbol_table: Vec<HashMap<String, VariableContext>>,
     indent_level: usize,
-    current_function: Option<FunctionContext>
+    current_function: Option<FunctionContext>,
+    if_label_counter: usize,
+    loop_label_counter: usize
 }
 
 impl Default for LLVMCodeGenerator {
@@ -31,7 +33,9 @@ impl Default for LLVMCodeGenerator {
             loop_stack: Vec::new(),
             symbol_table: Vec::new(),
             indent_level: 0,
-            current_function: None
+            current_function: None,
+            if_label_counter: 0,
+            loop_label_counter: 0
         };
     }
 }
@@ -293,6 +297,117 @@ impl LLVMCodeGenerator {
 
                 return Ok(output.0);
             },
+
+            Statement::If { condition, then_branch, else_branch, span } => {
+                let mut code = String::new();
+
+                // Labels
+                let then_label = format!("_if_then_{}", self.if_label_counter);
+                let else_label = format!("_if_else_{}", self.if_label_counter);
+                let endif_label = format!("_if_end_{}", self.if_label_counter);
+                self.if_label_counter += 1;
+
+                // Evaluate condition
+                let (cond_code, cond_ssa) = self.generate_expression(&condition, None)?;
+                code.push_str(&cond_code);
+
+                // Branch based on condition
+                let else_target = if else_branch.is_some() { &else_label } else { &endif_label };
+                code.push_str(&format!(
+                    "{}br i1 {}, label %{}, label %{}\n",
+                    self.indent(),
+                    cond_ssa,
+                    then_label,
+                    else_target
+                ));
+
+                // Then block
+                code.push_str(&format!("{}:\n", then_label));
+                let then_code = self.generate_statement(*then_branch)?;
+                code.push_str(&then_code);
+
+                // if then branch doesn't end with ret, branch to end
+                let then_ends_with_ret = then_code
+                    .lines()
+                    .rev()
+                    .find(|line| !line.trim().is_empty())
+                    .map(|line| line.trim_start().starts_with("ret"))
+                    .unwrap_or(false);
+
+                if !then_ends_with_ret {
+                    code.push_str(&format!("{}br label %{}\n", self.indent(), endif_label));
+                }
+
+                // Else block
+                if let Some(else_stmt) = else_branch {
+                    code.push_str(&format!("{}:\n", else_label));
+                    code.push_str(&self.generate_statement(*else_stmt)?);
+                    code.push_str(&format!("{}br label %{}\n", self.indent(), endif_label));
+                }
+
+                // End label
+                code.push_str(&format!("{}:\n", endif_label));
+
+                return Ok(code);
+            }
+
+            Statement::While { condition, body, span } => {
+                let mut code = String::new();
+
+                // Labels
+                let cond_label = format!("_while_cond_{}", self.loop_label_counter);
+                let body_label = format!("_while_body_{}", self.loop_label_counter);
+                let end_label = format!("_while_end_{}", self.loop_label_counter);
+                self.loop_label_counter += 1;
+
+                // Push to loop stack for break/continue
+                self.loop_stack.push((cond_label.clone(), end_label.clone()));
+
+                // Initial jump to condition
+                code.push_str(&format!("{}br label %{}\n", self.indent(), cond_label));
+
+                // Condition block
+                code.push_str(&format!("{}:\n", cond_label));
+                let (cond_code, cond_ssa) = self.generate_expression(&condition, None)?;
+                
+                code.push_str(&cond_code);
+
+                code.push_str(&format!(
+                    "{}br i1 {}, label %{}, label %{}\n",
+                    self.indent(),
+                    cond_ssa,
+                    body_label,
+                    end_label
+                ));
+
+                // Body block
+                code.push_str(&format!("{}:\n", body_label));
+                code.push_str(&self.generate_statement(*body)?);
+                code.push_str(&format!("{}br label %{}\n", self.indent(), cond_label));
+
+                // End block
+                code.push_str(&format!("{}:\n", end_label));
+
+                self.loop_stack.pop();
+
+                return Ok(code);
+            }
+
+            Statement::Break { span } => {
+                if let Some((_, end_label)) = self.loop_stack.last() {
+                    return Ok(format!("{}br label %{}\n", self.indent(), end_label));
+                } else {
+                    return Err(CodegenError::InvalidBreak);
+                }
+            }
+
+            Statement::Continue { span } => {
+                if let Some((cond_label, _)) = self.loop_stack.last() {
+                    return Ok(format!("{}br label %{}\n", self.indent(), cond_label));
+                } else {
+                    return Err(CodegenError::InvalidContinue);
+                }
+            }
 
             // Statement::If{ condition: expression, then_branch: body, else_branch: else_ } => {
             //     let mut output = self.generate_expression(&expression)?;
