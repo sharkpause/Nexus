@@ -381,6 +381,8 @@ impl<'a> SemanticAnalyzer<'a> {
             },
 
             Statement::If { condition, then_branch, else_branch, span } => {
+                // TODO: cast generics in if and while
+                
                 self.validate_expression(condition, &mut None);
                 self.validate_statement(then_branch);
                 
