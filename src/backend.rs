@@ -8,6 +8,7 @@ pub enum CodegenError {
     InvalidContinue,
     UnknownExpression,
     UnknownStatement,
+    InvalidType,
 }
 
 pub trait Backend {
