@@ -246,7 +246,12 @@ impl<'a> SemanticAnalyzer<'a> {
     }
 
     fn lookup_variable(&self, name: &String) -> Option<&VariableSymbol> {
-        return self.symbol_table.last().expect("Variable should exist at this point").get(name);
+        for scope in self.symbol_table.iter().rev() {
+            if let Some(var) = scope.get(name) {
+                return Some(var);
+            }
+        }
+        None
     }
 
     fn function_exists(&self, name: &str) -> bool {
