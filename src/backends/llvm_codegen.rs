@@ -239,7 +239,6 @@ impl LLVMCodeGenerator {
                         self.generate_expression(&expr, Some(&return_type))?
                     }
                     None => {
-                        // This should never happen if semantic analysis is correct
                         unreachable!("Non-void function must return a value");
                     }
                 };
@@ -301,7 +300,6 @@ impl LLVMCodeGenerator {
             Statement::If { condition, then_branch, else_branch, span } => {
                 let mut code = String::new();
 
-                // Labels
                 let then_label = format!("_if_then_{}", self.if_label_counter);
                 let else_label = format!("_if_else_{}", self.if_label_counter);
                 let endif_label = format!("_if_end_{}", self.if_label_counter);
@@ -319,7 +317,6 @@ impl LLVMCodeGenerator {
                     cond_ssa
                 ));
 
-                // Branch based on condition
                 let else_target = if else_branch.is_some() { &else_label } else { &endif_label };
                 code.push_str(&format!(
                     "{}br i1 {}, label %{}, label %{}\n",
@@ -329,12 +326,12 @@ impl LLVMCodeGenerator {
                     else_target
                 ));
 
-                // Then block
                 code.push_str(&format!("{}:\n", then_label));
                 let then_code = self.generate_statement(*then_branch)?;
                 code.push_str(&then_code);
 
-                // if then branch doesn't end with ret, branch to end
+                // ends_with_terminator is needed to prevent double "ret"s and "br"s that
+                // confuses LLVM
                 let then_ends_with_terminator = then_code
                     .lines()
                     .rev()
@@ -349,7 +346,6 @@ impl LLVMCodeGenerator {
                     code.push_str(&format!("{}br label %{}\n", self.indent(), endif_label));
                 }
 
-                // Else block
                 if let Some(else_stmt) = else_branch {
                     code.push_str(&format!("{}:\n", else_label));
 
@@ -371,7 +367,6 @@ impl LLVMCodeGenerator {
                     }
                 }
 
-                // End label
                 code.push_str(&format!("{}:\n", endif_label));
 
                 return Ok(code);
@@ -380,19 +375,15 @@ impl LLVMCodeGenerator {
             Statement::While { condition, body, span } => {
                 let mut code = String::new();
 
-                // Labels
                 let cond_label = format!("_while_cond_{}", self.loop_label_counter);
                 let body_label = format!("_while_body_{}", self.loop_label_counter);
                 let end_label = format!("_while_end_{}", self.loop_label_counter);
                 self.loop_label_counter += 1;
 
-                // Push to loop stack for break/continue
                 self.loop_stack.push((cond_label.clone(), end_label.clone()));
 
-                // Initial jump to condition
                 code.push_str(&format!("{}br label %{}\n", self.indent(), cond_label));
 
-                // Condition block
                 code.push_str(&format!("{}:\n", cond_label));
                 let (cond_code, cond_ssa) = self.generate_expression(&condition, Some(&Type::Int32))?;
                 code.push_str(&cond_code);
@@ -414,12 +405,10 @@ impl LLVMCodeGenerator {
                     end_label
                 ));
 
-                // Body block
                 code.push_str(&format!("{}:\n", body_label));
                 code.push_str(&self.generate_statement(*body)?);
                 code.push_str(&format!("{}br label %{}\n", self.indent(), cond_label));
 
-                // End block
                 code.push_str(&format!("{}:\n", end_label));
 
                 self.loop_stack.pop();
@@ -443,68 +432,9 @@ impl LLVMCodeGenerator {
                 }
             }
 
-            // Statement::If{ condition: expression, then_branch: body, else_branch: else_ } => {
-            //     let mut output = self.generate_expression(&expression)?;
-                
-            //     let endif_label = format!("_endif_{}", self.if_label_counter);
-            //     self.if_label_counter += 1;
-                
-            //     let mut then_code = String::new();
-            //     then_code.push_str("\tcmp rax, 0\n");
-
-            //     let mut branch_code = String::new();
-            //     let else_label = match else_ {
-            //         Some(statement) => {
-            //             let label = format!("_else{}", self.if_label_counter);
-            //             branch_code.push_str(&format!("\t{}:\n", label));
-            //             branch_code.push_str(&self.generate_statement(*statement)?);
-            //             label
-            //         },
-            //         None => {
-            //             branch_code.push_str(&format!("\t{}:\n", endif_label));
-            //             endif_label
-            //         }
-            //     };
-
-            //     then_code.push_str(&format!("\tje {}\n", else_label));
-            //     then_code.push_str(&self.generate_statement(*body)?);
-
-            //     output.push_str(&then_code);
-            //     output.push_str(&branch_code);
-
-            //     return Ok(output);
-            // },
-            // Statement::While { condition, body } => {
-            //     let start_label = format!("_loop_start{}", self.loop_label_counter);
-            //     let end_label = format!("_loop_end{}", self.loop_label_counter);
-                
-            //     self.loop_stack.push((start_label.clone(), end_label.clone()));
-
-            //     self.loop_label_counter += 1;
-                
-            //     let mut output = format!("\t{}:\n", start_label);
-
-            //     output.push_str(&self.generate_expression(&condition)?);
-            //     output.push_str(&format!("\tcmp rax, 0\n\tje {}\n", end_label));
-            //     output.push_str(&self.generate_statement(*body)?);
-            //     output.push_str(&format!("\tjmp {}\n", start_label));
-            //     output.push_str(&format!("\t{}:\n", end_label));
-
-            //     self.loop_stack.pop();
-
-            //     return Ok(output);
-            // },
-            // Statement::Break => {
-            //     let loop_context = self.loop_stack.last().ok_or(CodegenError::InvalidBreak)?;
-            //     return Ok(format!("\tjmp {}\n", loop_context.1));
-            // },
-            // Statement::Continue => {
-            //     let loop_context = self.loop_stack.last().ok_or(CodegenError::InvalidContinue)?;
-            //     return Ok(format!("\tjmp {}\n", loop_context.0));
-            // },
-            _ => {
-                return Err(CodegenError::UnknownStatement);
-            }
+            // _ => {
+            //     return Err(CodegenError::UnknownStatement);
+            // }
         }
     }
 
@@ -603,7 +533,7 @@ impl LLVMCodeGenerator {
                 let mut ssa: String;
 
                 match operator {
-                    // Arithmetic operators remain the same
+                    // Arithmetic
                     Operator::Add | Operator::Subtract | Operator::Multiply | Operator::Divide => {
                         let op_str = match operator {
                             Operator::Add => "add",
@@ -673,7 +603,7 @@ impl LLVMCodeGenerator {
                         }
                     }
 
-                    // Logical operators && and ||
+                    // Logical operators
                     Operator::And | Operator::Or => {
                         // Convert operands to i1 first since LLVM needs i1 for both operands
                         // for logical operators.
