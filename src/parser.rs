@@ -488,7 +488,7 @@ impl Parser {
                     None
                 };
 
-                // parse nested ifs
+                // parse nested ifs, doing it recursively to avoid stack overflow with deep recursion
                 let mut result = else_body;
                 for (cond, body) in conditions.iter().rev().zip(bodies.iter().rev()) {
                     result = Some(Box::new(Statement::If {
