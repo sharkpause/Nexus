@@ -154,7 +154,8 @@ pub enum Type {
     Int32,
     Int64,
     GenericInt, // For integer literals
-    Void
+    Void,
+    String
 }
 
 impl Type {
@@ -163,7 +164,7 @@ impl Type {
     }
 
     pub fn is_void(&self) -> bool {
-        return discriminant(self) == discriminant(&Type::Void );
+        return discriminant(self) == discriminant(&Type::Void);
     }
 
     pub fn is_integer(&self) -> bool {
@@ -252,14 +253,22 @@ impl Parser {
                 self.consume_token();
                 return Ok(Type::Int32);
             },
+            
             TokenKind::Int64Type => {
                 self.consume_token();
                 return Ok(Type::Int64);
             },
+            
             TokenKind::VoidType => {
                 self.consume_token();
                 return Ok(Type::Void);
+            },
+
+            TokenKind::StringType => {
+                self.consume_token();
+                return Ok(Type::String);
             }
+            
             _ => Err(ParserError::UnexpectedToken(token.clone())),
         }
     }

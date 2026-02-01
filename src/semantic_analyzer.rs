@@ -1,4 +1,4 @@
-use std::{collections::HashMap, env::var, slice::GetDisjointMutError};
+use std::{collections::HashMap, env::var, slice::GetDisjointMutError, sync::LazyLock};
 
 use crate::parser::{ Expression, Function, Span, Statement, TopLevel, Type };
 
@@ -258,8 +258,19 @@ impl<'a> SemanticAnalyzer<'a> {
         return self.function_names.contains_key(name);
     }
 
+    
     fn lookup_function(&self, name: &str) -> Option<&FunctionSymbol> {
-        return self.function_names.get(name);
+        static PUTS_SYMBOL: LazyLock<FunctionSymbol> = LazyLock::new(|| FunctionSymbol {
+            parameters: vec![(Type::String, "s".to_string())],
+            return_type: Type::Int32,
+            span: Span { line: 0, column: 0 },
+        });
+
+        if name == "puts" {
+            return Some(&*PUTS_SYMBOL);
+        }
+
+        self.function_names.get(name)
     }
 
     fn validate_tree(&mut self) {
@@ -525,6 +536,10 @@ impl<'a> SemanticAnalyzer<'a> {
             
             Expression::IntLiteral64 { value, span } => {
                 return Some(Type::Int64);
+            },
+
+            Expression::StringLiteral { value, span } => {
+                return Some(Type::String);
             }
         }
     }
@@ -647,6 +662,10 @@ impl<'a> SemanticAnalyzer<'a> {
             Expression::IntLiteral64 { value, span } => {
                 return Ok(Type::Int64);
             },
+
+            Expression::StringLiteral { value, span } => {
+                return Ok(Type::String);
+            }
         }
     }
 
@@ -755,6 +774,10 @@ impl<'a> SemanticAnalyzer<'a> {
                     }
                 }
             },
+
+            Expression::StringLiteral { value, span } => {
+                // ye
+            }
         }
 
         return Ok(());
@@ -846,6 +869,10 @@ impl<'a> SemanticAnalyzer<'a> {
 
             Expression::IntLiteral32 { .. } => return Ok(Type::Int32),
             Expression::IntLiteral64 { .. } => return Ok(Type::Int64),
+        
+            Expression::StringLiteral { value, span } => {
+                return Ok(Type::String);
+            },
         }
     }
 
@@ -941,6 +968,10 @@ impl<'a> SemanticAnalyzer<'a> {
                         });
                     }
                 }
+            },
+
+            Expression::StringLiteral { value, span } => {
+                // ye
             }
         }
     }

@@ -1,3 +1,4 @@
+use std::fmt::format;
 use std::{ collections::HashMap };
 
 use crate::parser::{Expression, Operator, Statement, TopLevel, Type};
@@ -16,26 +17,28 @@ struct VariableContext {
 
 pub struct LLVMCodeGenerator {
     ssa_counter: usize,
-    block_counter: usize,
+    // block_counter: usize,
     loop_stack: Vec<(String, String)>,
     symbol_table: Vec<HashMap<String, VariableContext>>,
     indent_level: usize,
     current_function: Option<FunctionContext>,
     if_label_counter: usize,
-    loop_label_counter: usize
+    loop_label_counter: usize,
+    globals_code: String,
 }
 
 impl Default for LLVMCodeGenerator {
     fn default() -> Self {
         return Self {
             ssa_counter: 1,
-            block_counter: 0,
+            // block_counter: 0,
             loop_stack: Vec::new(),
             symbol_table: Vec::new(),
             indent_level: 0,
             current_function: None,
             if_label_counter: 0,
-            loop_label_counter: 0
+            loop_label_counter: 0,
+            globals_code: String::new()
         };
     }
 }
@@ -81,6 +84,7 @@ impl LLVMCodeGenerator {
             Type::Int64 => return "i64",
             Type::Int32 => return "i32",
             Type::Void => return "void",
+            Type::String => return "i8*",
             _ => unreachable!("Other types should not be allowed in semantic analysis")
         }
     }
@@ -119,7 +123,11 @@ impl LLVMCodeGenerator {
     }
 
     pub fn generate(&mut self, program: Vec<TopLevel>) -> Result<String, CodegenError> {
+        let mut final_output = String::new();
         let mut output = String::new();
+
+        // Below is temporary to hardcode the puts function from C
+        output.push_str("declare i32 @puts(i8*)\n\n");
 
         for toplevel in program {
             match toplevel {
@@ -187,7 +195,11 @@ impl LLVMCodeGenerator {
                 }                
             }
         }
-        return Ok(output);
+
+        final_output.push_str(&self.globals_code);
+        final_output.push_str(&output);
+
+        return Ok(final_output);
     }
 
     fn generate_function_body(&mut self, statement: Statement) -> Result<String, CodegenError> {
@@ -721,6 +733,28 @@ impl LLVMCodeGenerator {
 
                 return Ok((code, ssa));
             },
+
+            Expression::StringLiteral { value, span } => {
+                let string_literal_name = format!("@.str_{}", self.ssa_counter);
+                self.ssa_counter += 1;
+
+                let string_literal_length = value.len() + 1;
+
+                self.globals_code.push_str(&format!(
+                    "{} = private unnamed_addr constant [{} x i8] c\"{}\\00\"\n",
+                    string_literal_name, string_literal_length, value
+                ));
+
+                let ssa = format!("%{}", self.ssa_counter);
+                self.ssa_counter += 1;
+
+                let code = format!(
+                    "{}{} = getelementptr [{} x i8], [{} x i8]* {}, i32 0, i32 0\n",
+                    self.indent(), ssa, string_literal_length, string_literal_length, string_literal_name
+                );
+
+                return Ok((code, ssa));
+            }
         }
     }
 }

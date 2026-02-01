@@ -43,6 +43,7 @@ pub enum TokenKind {
     Continue,
     VoidType,
     StringLiteral(String),
+    StringType
 }
 
 impl Token {

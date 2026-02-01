@@ -165,6 +165,10 @@ fn print_expression(expr: &Expression, indent: usize) {
 
         Expression::IntLiteral64 { value, span } => {
             println!("{} Int64 {}", padding, value);
+        },
+
+        Expression::StringLiteral { value, span } => {
+            println!("String literal: \"{}\"", value);
         }
     }
 }
@@ -329,7 +333,7 @@ pub fn print_semantic_errors(diagnostics: &Diagnostics) {
 
 fn llvm_optimize_and_link(ll_path: &str, output_exe: &str) {
     let opt_status = Command::new("opt")
-        .args(["-O2", ll_path, "-o", "out.opt.ll"])
+        .args(["-O2", ll_path, "-o", "out.opt.bc"])
         .status()
         .expect("Failed to run opt");
 
@@ -338,7 +342,7 @@ fn llvm_optimize_and_link(ll_path: &str, output_exe: &str) {
     }
 
     let llc_status = Command::new("llc")
-        .args(["out.opt.ll", "-filetype=obj", "-o", "out.o"])
+        .args(["out.opt.bc", "-filetype=obj", "-relocation-model=pic", "-o", "out.o"])
         .status()
         .expect("Failed to run llc");
 
