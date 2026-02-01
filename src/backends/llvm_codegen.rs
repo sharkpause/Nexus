@@ -520,14 +520,22 @@ impl LLVMCodeGenerator {
                     .collect::<Vec<_>>()
                     .join(", ");
 
-                let function_call_ssa = format!("%{}", function_name);
+                let function_call_ssa = format!("%{}{}", function_name, self.ssa_counter);
+                self.ssa_counter += 1;
 
                 match return_type {
                     Some(type_) => {
-                        code.push_str(&format!(
-                            "{}{} = call {} @{}({})\n",
-                            self.indent(), function_call_ssa, self.map_type(type_), function_name, argument_code
-                        ));
+                        if type_.is_void() {
+                            code.push_str(&format!(
+                                "{}call {} @{}({})\n",
+                                self.indent(), self.map_type(type_), function_name, argument_code
+                            ));
+                        } else {
+                            code.push_str(&format!(
+                                "{}{} = call {} @{}({})\n",
+                                self.indent(), function_call_ssa, self.map_type(type_), function_name, argument_code
+                            ));
+                        }
                     },
                     None => unreachable!("Return type is guaranteed")
                 }
