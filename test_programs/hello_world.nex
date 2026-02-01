@@ -1,0 +1,5 @@
+function int32 entry() {
+    puts("Hello, world!");
+
+    return 0;
+}
