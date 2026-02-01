@@ -41,7 +41,8 @@ pub enum TokenKind {
     Not,
     Break,
     Continue,
-    VoidType
+    VoidType,
+    StringLiteral,
 }
 
 impl Token {
