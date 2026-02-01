@@ -94,6 +94,7 @@ impl LLVMCodeGenerator {
             Expression::IntLiteral { .. } => Type::GenericInt, // Might change this to either panic or unreachable
             Expression::IntLiteral32 { .. } => Type::Int32,
             Expression::IntLiteral64 { .. } => Type::Int64,
+            Expression::StringLiteral { .. } => Type::String,
 
             Expression::Variable { type_, .. } => {
                 type_.clone().expect("Variable must have type from semantic analysis")
