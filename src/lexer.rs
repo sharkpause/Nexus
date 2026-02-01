@@ -202,7 +202,7 @@ impl Lexer {
             let start_line = self.line;
             let start_column = self.column;
 
-            // --- handle comments ---
+            // Comments
             if current_char == '/' {
                 if let Some(next_char) = self.peek_char(1) {
                     if next_char == '/' {
@@ -235,7 +235,7 @@ impl Lexer {
                 }
             }
 
-            // --- handle digits ---
+            // Number literals
             if current_char.is_digit(10) {
                 let mut token = String::new();
                 while let Some(character) = self.peek_char(0) {
@@ -261,15 +261,35 @@ impl Lexer {
                 return Ok(Token { kind: TokenKind::IntLiteral(number), line: start_line, column: start_column });
             }
 
-            // --- handle identifiers / keywords ---
+            // String literals
+            if current_char == '"' {
+                self.consume_char();
+
+                let mut string_literal = String::new();
+                while let Some(character) = self.peek_char(0) {
+                    self.consume_char();
+                    if character == '"' {
+                        break;
+                    }
+                    string_literal.push(character);
+                }
+
+                return Ok(Token {
+                    kind: TokenKind::StringLiteral(string_literal),
+                    line: start_line,
+                    column: start_column
+                })
+            }
+
+            // Keywords, identifiers
             if current_char.is_alphabetic() || current_char == '_' {
                 let mut token = String::new();
                 token.push(current_char);
                 self.consume_char();
 
-                while let Some(c) = self.peek_char(0) {
-                    if c.is_alphanumeric() || c == '_' {
-                        token.push(c);
+                while let Some(character) = self.peek_char(0) {
+                    if character.is_alphanumeric() || character == '_' {
+                        token.push(character);
                         self.consume_char();
                     } else {
                         break;

@@ -132,6 +132,11 @@ pub enum Expression {
         arguments: Vec<Expression>,
         span: Span,
     },
+
+    StringLiteral {
+        value: String,
+        span: Span
+    },
 }
 
 impl Expression {
@@ -637,6 +642,17 @@ impl Parser {
                     span
                 }
             },
+
+            TokenKind::StringLiteral(value) => {
+                let expression_value = value.clone();
+
+                self.consume_token();
+                
+                Expression::StringLiteral {
+                    value: expression_value,
+                    span
+                }
+            }
 
             _ => return Err(ParserError::UnexpectedToken(current_token.clone())),
         };
