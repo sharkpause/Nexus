@@ -17,6 +17,7 @@ pub enum TokenKind {
     LeftParentheses,
     RightParentheses,
     Function,
+    Int8Type,
     Int32Type,
     Int64Type,
     Identifier(String),

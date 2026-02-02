@@ -301,6 +301,7 @@ impl Lexer {
                     "function" => TokenKind::Function,
                     "extern" => TokenKind::Extern,
 
+                    "int8" => TokenKind::Int8Type,
                     "int32" => TokenKind::Int32Type,
                     "int64" => TokenKind::Int64Type,
                     "void" => TokenKind::VoidType,

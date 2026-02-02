@@ -14,12 +14,14 @@ pub enum ParserError {
     UnexpectedToken(Token),
     UnexpectedEndOfInput,
     UnexpectedType(Type),
+    UnexpectedBody,
 }
 
 #[derive(Debug, Clone)]
 pub enum TopLevel {
     Function(Function),
-    Statement(Statement),
+
+    Statement(Statement), // All this does is cause a semantic error
 }
 
 #[derive(Debug, Clone)]
@@ -151,11 +153,13 @@ impl Expression {
 
 #[derive(Debug, Clone)]
 pub enum Type {
+    Int8,
     Int32,
     Int64,
-    GenericInt, // For integer literals
+    GenericInt, // For integer literals that will be turned into something more specific by semantic analysis
     Void,
-    String
+    // String,
+    Pointer(Box<Type>),
 }
 
 impl Type {
@@ -170,7 +174,7 @@ impl Type {
     pub fn is_integer(&self) -> bool {
         return matches!(
             self,
-            Type::Int32 | Type::Int64 | Type::GenericInt
+            Type::Int32 | Type::Int64 | Type::Int8 | Type::GenericInt
         );
     }
 
@@ -206,7 +210,7 @@ pub struct Function {
     pub name: String,
     pub return_type: Type,
     pub parameters: Vec<(Type, String)>,
-    pub body: Statement,
+    pub body: Option<Statement>,
     pub span: Span,
 }
 
@@ -248,29 +252,49 @@ impl Parser {
             .peek_token(0)
             .ok_or(ParserError::UnexpectedEndOfInput)?;
 
-        match &token.kind {
-            TokenKind::Int32Type => {
-                self.consume_token();
-                return Ok(Type::Int32);
-            },
-            
-            TokenKind::Int64Type => {
-                self.consume_token();
-                return Ok(Type::Int64);
-            },
-            
-            TokenKind::VoidType => {
-                self.consume_token();
-                return Ok(Type::Void);
-            },
+        let mut type_ =
+            match &token.kind {
+                TokenKind::Int8Type => {
+                    self.consume_token();
+                    Type::Int8
+                },
 
-            TokenKind::StringType => {
-                self.consume_token();
-                return Ok(Type::String);
+                TokenKind::Int32Type => {
+                    self.consume_token();
+                    Type::Int32
+                },
+                
+                TokenKind::Int64Type => {
+                    self.consume_token();
+                    Type::Int64
+                },
+                
+                TokenKind::VoidType => {
+                    self.consume_token();
+                    Type::Void
+                },
+
+                TokenKind::StringType => {
+                    self.consume_token();
+                    Type::Pointer(Box::new(Type::Int8))
+                },
+                
+                _ => return Err(ParserError::UnexpectedToken(token.clone())),
+            };
+
+        if let Some(next_token) = self.peek_token(0) {
+            match next_token.kind {
+                TokenKind::Star => {
+                    self.consume_token();
+                    type_ = Type::Pointer(Box::new(type_));
+                },
+
+                _ => {}
             }
-            
-            _ => Err(ParserError::UnexpectedToken(token.clone())),
         }
+
+        return Ok(type_);
+        
     }
 
     pub fn expect_identifier(&mut self) -> Result<String, ParserError> {
@@ -342,6 +366,20 @@ impl Parser {
                     let function = self.parse_function()?;
                     program.push(TopLevel::Function(function));
                 },
+                
+                TokenKind::Extern => {
+                    self.consume_token();
+                    let function = self.parse_function()?;
+
+                    if function.body.is_some() {
+                        return Err(ParserError::UnexpectedBody);
+                    }
+
+                    self.expect_token(&TokenKind::Semicolon);
+
+                    program.push(TopLevel::Function(function));
+                },
+
                 _ => {
                     let statement = self.parse_statement()?;
                     program.push(TopLevel::Statement(statement));
@@ -384,11 +422,25 @@ impl Parser {
 
         self.consume_token();
 
+        if self.peek_token(0)
+            .ok_or(ParserError::UnexpectedEndOfInput)
+            ?
+            .same_kind(&TokenKind::Semicolon) {
+            return Ok(Function {
+                name: function_name,
+                return_type: return_type,
+                parameters,
+                body: None,
+                span
+            });
+        }
+
+        let function_body = self.parse_block()?;
         return Ok(Function {
             name: function_name,
             return_type: return_type,
             parameters,
-            body: self.parse_block()?,
+            body: Some(function_body),
             span
         });
     }

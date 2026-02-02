@@ -396,18 +396,26 @@ fn main() {
                         "Parser error at line {}, column {}: unexpected token {:?}",
                         token.line, token.column, token.kind
                     );
-                }
+                },
+
                 ParserError::UnexpectedEndOfInput => {
-                    eprintln!("Parser error: unexpected end of input");
-                }
+                    eprintln!("Parser error: Unexpected end of input");
+                },
+                
                 ParserError::UnexpectedType(_) => {
-                    eprintln!("Parser error: unexpected type");
-                }
+                    eprintln!("Parser error: Unexpected type");
+                },
+                
                 ParserError::GenericError => {
-                    eprintln!("Parser error: generic error");
-                }
+                    eprintln!("Parser error: Generic error");
+                },
+                
                 ParserError::EndOfInput => {
-                    eprintln!("Parser error: end of input");
+                    eprintln!("Parser error: End of input");
+                },
+            
+                ParserError::UnexpectedBody => {
+                    eprintln!("Parser error: Unexpected body");
                 }
             }
             return;
@@ -418,7 +426,9 @@ fn main() {
         match toplevel {
             TopLevel::Function(f) => {
                 println!("Function: {}, Return Type: {:?}, Parameters: {:?}", f.name, f.return_type, f.parameters);
-                print_statement(&f.body, 1);
+                if let Some(f_body) = &f.body {
+                    print_statement(f_body, 1);
+                }
             }
             TopLevel::Statement(s) => print_statement(&s, 1),
         }
@@ -437,7 +447,9 @@ fn main() {
         match toplevel {
             TopLevel::Function(f) => {
                 println!("Function: {}, Return Type: {:?}, Parameters: {:?}", f.name, f.return_type, f.parameters);
-                print_statement(&f.body, 1);
+                if let Some(f_body) = &f.body {
+                    print_statement(f_body, 1);
+                }
             }
             TopLevel::Statement(s) => print_statement(&s, 1),
         }

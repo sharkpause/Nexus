@@ -260,16 +260,6 @@ impl<'a> SemanticAnalyzer<'a> {
 
     
     fn lookup_function(&self, name: &str) -> Option<&FunctionSymbol> {
-        static PUTS_SYMBOL: LazyLock<FunctionSymbol> = LazyLock::new(|| FunctionSymbol {
-            parameters: vec![(Type::String, "s".to_string())],
-            return_type: Type::Int32,
-            span: Span { line: 0, column: 0 },
-        });
-
-        if name == "puts" {
-            return Some(&*PUTS_SYMBOL);
-        }
-
         self.function_names.get(name)
     }
 
@@ -302,12 +292,14 @@ impl<'a> SemanticAnalyzer<'a> {
             self.add_variable(name.clone(), parameter_type.clone(), function.span);
         }
 
-        if let Statement::Block { statements, .. } = &mut function.body {
-            for statement in statements {
-                self.validate_statement(statement);
+        if let Some(function_body) = &mut function.body {
+            if let Statement::Block { statements, .. } = function_body {
+                for statement in statements {
+                    self.validate_statement(statement);
+                }
+            } else {
+                unreachable!("Function body should always be a block");
             }
-        } else {
-            unreachable!("Function body should always be a block");
         }
 
         self.exit_scope();
@@ -539,7 +531,7 @@ impl<'a> SemanticAnalyzer<'a> {
             },
 
             Expression::StringLiteral { value, span } => {
-                return Some(Type::String);
+                return Some(Type::Pointer(Box::new(Type::Int8)));
             }
         }
     }
@@ -664,7 +656,7 @@ impl<'a> SemanticAnalyzer<'a> {
             },
 
             Expression::StringLiteral { value, span } => {
-                return Ok(Type::String);
+                return Ok(Type::Pointer(Box::new(Type::Int8)));
             }
         }
     }
@@ -871,7 +863,7 @@ impl<'a> SemanticAnalyzer<'a> {
             Expression::IntLiteral64 { .. } => return Ok(Type::Int64),
         
             Expression::StringLiteral { value, span } => {
-                return Ok(Type::String);
+                return Ok(Type::Pointer(Box::new(Type::Int8)));
             },
         }
     }

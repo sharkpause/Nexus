@@ -84,7 +84,14 @@ impl LLVMCodeGenerator {
             Type::Int64 => return "i64",
             Type::Int32 => return "i32",
             Type::Void => return "void",
-            Type::String => return "i8*",
+            Type::Pointer(type_) => {
+                match &**type_ {
+                    Type::Int8 => {
+                        return "i8*"
+                    },
+                    _ => todo!("Pointers of not int8 type is not supported yet")
+                }
+            },
             _ => unreachable!("Other types should not be allowed in semantic analysis")
         }
     }
@@ -94,7 +101,7 @@ impl LLVMCodeGenerator {
             Expression::IntLiteral { .. } => Type::GenericInt, // Might change this to either panic or unreachable
             Expression::IntLiteral32 { .. } => Type::Int32,
             Expression::IntLiteral64 { .. } => Type::Int64,
-            Expression::StringLiteral { .. } => Type::String,
+            Expression::StringLiteral { .. } => Type::Pointer(Box::new(Type::Int8)),
 
             Expression::Variable { type_, .. } => {
                 type_.clone().expect("Variable must have type from semantic analysis")
@@ -127,9 +134,6 @@ impl LLVMCodeGenerator {
         let mut final_output = String::new();
         let mut output = String::new();
 
-        // Below is temporary to hardcode the puts function from C
-        output.push_str("declare i32 @puts(i8*)\n\n");
-
         for toplevel in program {
             match toplevel {
                 TopLevel::Function(function) => {
@@ -138,9 +142,18 @@ impl LLVMCodeGenerator {
                         return_type: function.return_type.clone()
                     });
                     
+                    let function_keyword: &str;
+                    if let Some(..) = function.body {
+                        // Non-extern
+
+                        function_keyword = "define";
+                    } else {
+                        function_keyword = "declare";
+                    }
+
                     output.push_str(&format!(
-                        "{}define {} @{}(",
-                        self.indent(), self.map_type(&function.return_type), function.name
+                        "{}{} {} @{}(",
+                        self.indent(), function_keyword, self.map_type(&function.return_type), function.name
                     ));
 
                     let mut parameter_code = String::new();
@@ -173,22 +186,26 @@ impl LLVMCodeGenerator {
                         }
                         parameter_code.push_str("\n");
                     }
-                    
-                    output.push_str(") {\n");
-                    output.push_str(&format!("{}entry:\n", self.indent()));
 
-                    self.indent_level += 1;
+                    if let Some(function_body) = function.body {
+                        output.push_str(") {\n");
+                        output.push_str(&format!("{}entry:\n", self.indent()));
 
-                    output.push_str(&parameter_code);
+                        self.indent_level += 1;
 
-                    // the first Block needs to be handled specially by this method since arguments
-                    // need to be in the same scope as the body
-                    output.push_str(&self.generate_function_body(function.body)?);
+                        output.push_str(&parameter_code);
 
-                    self.indent_level -= 1;
-                    output.push_str(&format!("{}}}\n", self.indent()));
+                        // the first Block needs to be handled specially by this method since arguments
+                        // need to be in the same scope as the body
+                        output.push_str(&self.generate_function_body(function_body)?);
 
-                    self.exit_scope();
+                        self.indent_level -= 1;
+                        output.push_str(&format!("{}}}\n", self.indent()));
+
+                        self.exit_scope();
+                    } else {
+                        output.push_str(")\n");
+                    }
                 },
 
                 TopLevel::Statement(statement) => {
