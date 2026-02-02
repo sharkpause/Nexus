@@ -299,6 +299,7 @@ impl Lexer {
                 let kind = match token.as_str() {
                     "return" => TokenKind::Return,
                     "function" => TokenKind::Function,
+                    "extern" => TokenKind::Extern,
 
                     "int32" => TokenKind::Int32Type,
                     "int64" => TokenKind::Int64Type,
