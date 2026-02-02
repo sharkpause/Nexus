@@ -3,7 +3,7 @@
 Nexus is a C-like programming language with nicer memory management.  
 It achieves this by utilizing runtime features like leak detection, wrapped allocator functions to make double frees safe, prevent use after frees, prevent the creation of dangling pointers, and more.
 
-##### Current progress: smol, the language is still very bare-bones and does not have many basic features and primitive types yet.
+##### Current progress: smol, the language is still very bare-bones and does not have many basic features and primitive types yet. Note that the nicer memory management features has not been implemented yet
 
 ---
 
