@@ -1,0 +1,30 @@
+// Nexus supports functions and recursion. Note that every single function in Nexus MUST have an explicit return at the end, for example
+
+function void sample_function(int32 x) {
+    if(x == 1) {
+        puts("x is 1");
+        return;
+    } else if(x > 1) {
+        puts("x is greater than 1");
+        return;
+    } else {
+        puts("x is less than 1");
+        return;
+    }
+
+    // even though else will catch all cases, an explicit return at the end of the function is still required
+    // omitting this return will cause an error
+    return;
+}
+
+function int32 factorial(int32 n) {
+    if(n == 1 || n < 1) {
+        return 1;
+    }
+
+    return n * factorial(n - 1);
+}
+
+function int32 entry() {
+    return factorial(5);
+}
