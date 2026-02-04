@@ -139,6 +139,11 @@ pub enum Expression {
         value: String,
         span: Span
     },
+
+    BooleanLiteral {
+        value: bool,
+        span: Span
+    }
 }
 
 impl Expression {
@@ -153,12 +158,12 @@ impl Expression {
 
 #[derive(Debug, Clone)]
 pub enum Type {
-    Int8,
+    Int1, // Boolean
+    Int8, // String is a Pointer(Int8)
     Int32,
     Int64,
     GenericInt, // For integer literals that will be turned into something more specific by semantic analysis
     Void,
-    // String,
     Pointer(Box<Type>),
 }
 
@@ -278,6 +283,11 @@ impl Parser {
                     self.consume_token();
                     Type::Pointer(Box::new(Type::Int8))
                 },
+
+                TokenKind::BoolType => {
+                    self.consume_token();
+                    Type::Int1
+                }
                 
                 _ => return Err(ParserError::UnexpectedToken(token.clone())),
             };
@@ -713,7 +723,19 @@ impl Parser {
                     value: expression_value,
                     span
                 }
-            }
+            },
+
+            TokenKind::TrueValue => {
+                self.consume_token();
+
+                Expression::BooleanLiteral { value: true, span }
+            },
+
+            TokenKind::FalseValue => {
+                self.consume_token();
+
+                Expression::BooleanLiteral { value: false, span }
+            },
 
             _ => return Err(ParserError::UnexpectedToken(current_token.clone())),
         };

@@ -1,4 +1,3 @@
-use std::fmt::format;
 use std::{ collections::HashMap };
 
 use crate::parser::{Expression, Operator, Statement, TopLevel, Type};
@@ -83,6 +82,7 @@ impl LLVMCodeGenerator {
         match type_ {
             Type::Int64 => return "i64",
             Type::Int32 => return "i32",
+            Type::Int1 => return "i1",
             Type::Void => return "void",
             Type::Pointer(type_) => {
                 match &**type_ {
@@ -125,6 +125,8 @@ impl LLVMCodeGenerator {
                     else { unreachable!("Function call must have a variable callee") };
                 type_.clone().expect("Function must have return type from semantic analysis")
             },
+
+            Expression::BooleanLiteral { value, span } => Type::Int1,
 
             _ => panic!("Expression type inference not implemented for this variant"),
         };
@@ -335,6 +337,7 @@ impl LLVMCodeGenerator {
                 let endif_label = format!("_if_end_{}", self.if_label_counter);
                 self.if_label_counter += 1;
 
+                println!("if");
                 let (cond_code, cond_ssa) = self.generate_expression(&condition, Some(&Type::Int32))?;
                 code.push_str(&cond_code);
 
@@ -497,13 +500,32 @@ impl LLVMCodeGenerator {
                 let variable_pointer = self.lookup_variable(name)?;
                 let ssa_type = self.map_type(&variable_pointer.var_type);
 
-                let ssa = format!("%{}", self.ssa_counter);
-                let code = format!(
+                let mut ssa = format!("%{}", self.ssa_counter);
+                let mut code = format!(
                     "{}{} = load {}, {}* {}\n",
                     self.indent(), ssa, ssa_type, ssa_type, variable_pointer.ssa_name
                 );
-
                 self.ssa_counter += 1;
+
+                if let Some(expected) = expected_type {
+                    if variable_pointer.var_type.same_kind(expected) {
+                        return Ok((code, ssa));
+                    }
+
+                    let new_ssa = format!("%{}", self.ssa_counter);
+                    self.ssa_counter += 1;
+
+                    code.push_str(&format!(
+                        "{}{} = zext {} {} to {}\n",
+                        self.indent(),
+                        new_ssa,
+                        ssa_type,
+                        ssa,
+                        self.map_type(expected)
+                    ));
+
+                    ssa = new_ssa;
+                }
             
                 return Ok((code, ssa));
             },
@@ -780,7 +802,26 @@ impl LLVMCodeGenerator {
                 );
 
                 return Ok((code, ssa));
-            }
+            },
+
+            Expression::BooleanLiteral { value, span } => {
+                let mut expression_type = "i1";
+                let expression_value = if *value { 1 } else { 0 };
+
+                if let Some(expected) = expected_type {
+                    println!("{:?}", expected);
+                    expression_type = self.map_type(expected);
+                }
+
+                let ssa = format!("%{}", self.ssa_counter);
+                let code = format!(
+                    "{}{} = add {} 0, {}\n",
+                    self.indent(), ssa, expression_type, expression_value
+                );
+                self.ssa_counter += 1;
+
+                return Ok((code, ssa));
+            },
         }
     }
 }

@@ -168,7 +168,11 @@ fn print_expression(expr: &Expression, indent: usize) {
         },
 
         Expression::StringLiteral { value, span } => {
-            println!("String literal: \"{}\"", value);
+            println!("{} String literal: \"{}\"", padding, value);
+        },
+
+        Expression::BooleanLiteral { value, span } => {
+            println!("{} Boolean literal: {}", padding, value)
         }
     }
 }

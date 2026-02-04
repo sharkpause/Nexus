@@ -45,7 +45,10 @@ pub enum TokenKind {
     VoidType,
     StringLiteral(String),
     StringType,
-    Extern
+    Extern,
+    BoolType,
+    TrueValue,
+    FalseValue
 }
 
 impl Token {

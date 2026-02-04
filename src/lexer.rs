@@ -306,6 +306,10 @@ impl Lexer {
                     "int64" => TokenKind::Int64Type,
                     "void" => TokenKind::VoidType,
                     "string" => TokenKind::StringType,
+                    "bool" => TokenKind::BoolType,
+
+                    "true" => TokenKind::TrueValue,
+                    "false" => TokenKind::FalseValue,
                     
                     "var" => TokenKind::Var,
                     "if" => TokenKind::If,

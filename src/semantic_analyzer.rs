@@ -254,10 +254,9 @@ impl<'a> SemanticAnalyzer<'a> {
         None
     }
 
-    fn function_exists(&self, name: &str) -> bool {
-        return self.function_names.contains_key(name);
-    }
-
+    // fn function_exists(&self, name: &str) -> bool {
+    //     return self.function_names.contains_key(name);
+    // }
     
     fn lookup_function(&self, name: &str) -> Option<&FunctionSymbol> {
         self.function_names.get(name)
@@ -532,6 +531,10 @@ impl<'a> SemanticAnalyzer<'a> {
 
             Expression::StringLiteral { value, span } => {
                 return Some(Type::Pointer(Box::new(Type::Int8)));
+            },
+
+            Expression::BooleanLiteral { value, span } => {
+                return Some(Type::Int1);
             }
         }
     }
@@ -657,6 +660,10 @@ impl<'a> SemanticAnalyzer<'a> {
 
             Expression::StringLiteral { value, span } => {
                 return Ok(Type::Pointer(Box::new(Type::Int8)));
+            },
+
+            Expression::BooleanLiteral { value, span } => {
+                return Ok(Type::Int1);
             }
         }
     }
@@ -769,6 +776,10 @@ impl<'a> SemanticAnalyzer<'a> {
 
             Expression::StringLiteral { value, span } => {
                 // ye
+            },
+
+            Expression::BooleanLiteral { value, span } => {
+                // ye
             }
         }
 
@@ -865,6 +876,8 @@ impl<'a> SemanticAnalyzer<'a> {
             Expression::StringLiteral { value, span } => {
                 return Ok(Type::Pointer(Box::new(Type::Int8)));
             },
+
+            Expression::BooleanLiteral { value, span } => return Ok(Type::Int1),
         }
     }
 
@@ -963,6 +976,10 @@ impl<'a> SemanticAnalyzer<'a> {
             },
 
             Expression::StringLiteral { value, span } => {
+                // ye
+            },
+
+            Expression::BooleanLiteral { value, span } => {
                 // ye
             }
         }
