@@ -1,0 +1,21 @@
+extern function int32 puts(int8* s);
+
+function void print_big_smiley() {
+    puts("       ********       ");
+    puts("    *            *     ");
+    puts("   *    ^     ^   *    ");
+    puts("  *                *   ");
+    puts("  *        O       *   ");
+    puts("  *                *   ");
+    puts("   *              *    ");
+    puts("     *           *     ");
+    puts("       *********  ");
+
+    return;
+}
+
+function int32 entry() {
+    print_big_smiley();
+
+    return 0;
+}
