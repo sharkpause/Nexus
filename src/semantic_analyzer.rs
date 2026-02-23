@@ -502,7 +502,7 @@ impl<'a> SemanticAnalyzer<'a> {
                 let mut left_type = self.infer_expression_type(left)?;
                 let mut right_type = self.infer_expression_type(right)?;
 
-                // Handle GenericInt adoption, need to change this later
+                // TODO: Handle GenericInt adoption, need to change this later
                 // Otherwise it'd look ugly when I have GenericFloat, etc
                 if left_type.same_kind(&Type::GenericInt) && !right_type.same_kind(&Type::GenericInt) {
                     self.widen_expression(left, &right_type);
@@ -512,6 +512,8 @@ impl<'a> SemanticAnalyzer<'a> {
                     right_type = left_type.clone();
                 }
 
+                // TODO: Add type checking for arithmetic expressions so you can't do things like
+                // "penis" + "balls"        string + string should be disallowed.
                 if left_type.same_kind(&right_type) {
                 // if left_type.is_assignable_to(&right_type) {
                     return Some(left_type);

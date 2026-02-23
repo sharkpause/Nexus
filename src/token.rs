@@ -49,7 +49,12 @@ pub enum TokenKind {
     BoolType,
     TrueValue,
     FalseValue,
-    Percentage
+    Percentage,
+    Pipe,
+    Caret,
+    Ampersand,
+    ShiftLeft,
+    ShiftRight
 }
 
 impl Token {

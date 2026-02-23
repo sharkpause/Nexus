@@ -722,6 +722,36 @@ impl LLVMCodeGenerator {
                         }
                     },
 
+                    Operator::BitAnd
+                    | Operator::BitOr
+                    | Operator::BitXor
+                    | Operator::ShiftLeft
+                    | Operator::ShiftRight => {
+                        let op_str = match operator {
+                            Operator::BitAnd => "and",
+                            Operator::BitOr => "or",
+                            Operator::BitXor => "xor",
+                            Operator::ShiftLeft => "shl",
+                            Operator::ShiftRight => "ashr",
+                            _ => unreachable!(),
+                        };
+
+                        ssa = format!("%{}", self.ssa_counter);
+                        self.ssa_counter += 1;
+
+                        if let Some(expected) = expected_type {
+                            code.push_str(&format!(
+                                "{}{} = {} {} {}, {}\n",
+                                self.indent(),
+                                ssa,
+                                op_str,
+                                self.map_type(expected),
+                                left_ssa,
+                                right_ssa
+                            ));
+                        }
+                    },
+
                     Operator::Not => {
                         unreachable!("Not should not be in binary operation")
                     }

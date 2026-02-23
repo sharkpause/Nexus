@@ -82,6 +82,9 @@ impl Lexer {
             '>' => TokenKind::GreaterThan,
             '!' => TokenKind::Not,
             '%' => TokenKind::Percentage,
+            '|' => TokenKind::Pipe,
+            '^' => TokenKind::Caret,
+            '&' => TokenKind::Ampersand,
             _ => return None,
         };
 
@@ -143,6 +146,15 @@ impl Lexer {
                         line,
                         column,
                     });
+                } else if self.peek_char(1)? == '<' {
+                    self.consume_char();
+                    self.consume_char();
+
+                    return Some(Token {
+                        kind: TokenKind::ShiftLeft,
+                        line,
+                        column,
+                    });
                 } else {
                     return None;
                 }
@@ -154,6 +166,15 @@ impl Lexer {
 
                     return Some(Token {
                         kind: TokenKind::GreaterEqual,
+                        line,
+                        column,
+                    });
+                } else if self.peek_char(1)? == '>' {
+                    self.consume_char();
+                    self.consume_char();
+
+                    return Some(Token {
+                        kind: TokenKind::ShiftRight,
                         line,
                         column,
                     });

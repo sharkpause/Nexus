@@ -208,7 +208,12 @@ pub enum Operator {
     And,           // &&
     Or,            // ||
     Not,           // !
-    Modulo,        // %
+    Modulo,        // %,
+    BitAnd,        // &
+    BitOr,         // |
+    BitXor,        // ^
+    ShiftLeft,     // <<
+    ShiftRight,    // >>
 }
 
 #[derive(Debug, Clone)]
@@ -322,43 +327,49 @@ impl Parser {
 
     fn binding_power(&self, token: &Token) -> Option<u8> {
         /*
-        highest
-        -------
-        
-        ||
-        &&
-        |
-        ^
-        &
-        == !=
-        < <= > >=
-        << >>
-        + -
-        * / %
-        ! (not)
-        
-        -------
         lowest
+        -------
+        
+        ! (not)
+        * / %
+        + -
+        << >>
+        < <= > >=
+        == !=
+        &
+        ^
+        |
+        &&
+        ||
+        
+        -------
+        highest
         */
 
         return match &token.kind {
-            TokenKind::Or => Some(1),
-            TokenKind::And => Some(2),
+            TokenKind::Not => Some(10),
 
-            TokenKind::DoubleEqual | TokenKind::NotEqual => Some(3),
+            TokenKind::Star
+            | TokenKind::Slash
+            | TokenKind::Percentage => Some(20),
+
+            TokenKind::Plus | TokenKind::Minus => Some(30),
+
+            TokenKind::ShiftLeft | TokenKind::ShiftRight => Some(40),
 
             TokenKind::LessThan
             | TokenKind::LessEqual
             | TokenKind::GreaterThan
-            | TokenKind::GreaterEqual => Some(4),
+            | TokenKind::GreaterEqual => Some(50),
 
-            TokenKind::Plus | TokenKind::Minus => Some(5),
+            TokenKind::DoubleEqual | TokenKind::NotEqual => Some(60),
 
-            TokenKind::Star
-            | TokenKind::Slash
-            | TokenKind::Percentage => Some(6),
+            TokenKind::Ampersand => Some(70),
+            TokenKind::Caret => Some(80),
+            TokenKind::Pipe => Some(90),
 
-            TokenKind::Not => Some(7),
+            TokenKind::And => Some(100),
+            TokenKind::Or => Some(110),
 
             _ => None
         };
@@ -380,6 +391,11 @@ impl Parser {
             TokenKind::And => Some(Operator::And),
             TokenKind::Or => Some(Operator::Or),
             TokenKind::Percentage => Some(Operator::Modulo),
+            TokenKind::Ampersand => Some(Operator::BitAnd),
+            TokenKind::Pipe => Some(Operator::BitOr),
+            TokenKind::Caret => Some(Operator::BitXor),
+            TokenKind::ShiftLeft => Some(Operator::ShiftLeft),
+            TokenKind::ShiftRight => Some(Operator::ShiftRight),
             _ => None
         }
     }
