@@ -476,6 +476,3 @@ fn main() {
     // write_file("out.asm".to_string(), &output);
     // assemble_and_link("out.asm", "out");
 }
-
-// TODO: Rename project name from molbit to something else
-// Current pick: Nexus

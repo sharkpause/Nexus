@@ -496,6 +496,7 @@ impl<'a> SemanticAnalyzer<'a> {
             Expression::UnaryOperation { operator, operand, span } => {
                 return self.infer_expression_type(operand);
                 // TODO: In the future check if the operand can logically be negated
+                // So -1 is legal and -"one" is not
             },
 
             Expression::BinaryOperation { left, operator, right, span } => {
