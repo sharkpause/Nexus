@@ -81,6 +81,7 @@ impl Lexer {
             '<' => TokenKind::LessThan,
             '>' => TokenKind::GreaterThan,
             '!' => TokenKind::Not,
+            '%' => TokenKind::Percentage,
             _ => return None,
         };
 

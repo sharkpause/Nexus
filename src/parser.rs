@@ -208,6 +208,7 @@ pub enum Operator {
     And,           // &&
     Or,            // ||
     Not,           // !
+    Modulo,        // %
 }
 
 #[derive(Debug, Clone)]
@@ -324,7 +325,7 @@ impl Parser {
         highest
         -------
         ! (not)
-        * / 
+        * / %
         + -
         < <= > >=
         == !=
@@ -341,7 +342,7 @@ impl Parser {
             TokenKind::LessThan | TokenKind::LessEqual => Some(4),
             TokenKind::GreaterThan | TokenKind::GreaterEqual => Some(5),
             TokenKind::Plus | TokenKind::Minus => Some(6),
-            TokenKind::Star | TokenKind::Slash => Some(7),
+            TokenKind::Star | TokenKind::Slash | TokenKind::Percentage => Some(7),
             TokenKind::Not => Some(8),
             _ => None
         };
@@ -362,6 +363,7 @@ impl Parser {
             TokenKind::Not => Some(Operator::Not),
             TokenKind::And => Some(Operator::And),
             TokenKind::Or => Some(Operator::Or),
+            TokenKind::Percentage => Some(Operator::Modulo),
             _ => None
         }
     }

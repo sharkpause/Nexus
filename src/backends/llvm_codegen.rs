@@ -594,12 +594,16 @@ impl LLVMCodeGenerator {
 
                 match operator {
                     // Arithmetic
-                    Operator::Add | Operator::Subtract | Operator::Multiply | Operator::Divide => {
+                    Operator::Add | Operator::Subtract | Operator::Multiply | Operator::Divide | Operator::Modulo => {
                         let op_str = match operator {
                             Operator::Add => "add",
                             Operator::Subtract => "sub",
                             Operator::Multiply => "mul",
                             Operator::Divide => "sdiv",
+                            Operator::Modulo => {
+                                // Later have a check if operands are signed or unsigned
+                                "srem"
+                            },
                             _ => unreachable!(),
                         };
                         
@@ -716,9 +720,13 @@ impl LLVMCodeGenerator {
                             ));
                             ssa = zext_ssa;
                         }
+                    },
+
+                    Operator::Not => {
+                        unreachable!("Not should not be in binary operation")
                     }
 
-                    _ => unimplemented!("Other operators not yet"),
+                    // _ => unimplemented!("Other operators not yet"),
                 }
 
                 return Ok((code, ssa));

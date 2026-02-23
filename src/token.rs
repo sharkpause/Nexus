@@ -48,7 +48,8 @@ pub enum TokenKind {
     Extern,
     BoolType,
     TrueValue,
-    FalseValue
+    FalseValue,
+    Percentage
 }
 
 impl Token {
