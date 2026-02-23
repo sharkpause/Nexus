@@ -324,13 +324,19 @@ impl Parser {
         /*
         highest
         -------
-        ! (not)
-        * / %
-        + -
-        < <= > >=
-        == !=
-        && 
+        
         ||
+        &&
+        |
+        ^
+        &
+        == !=
+        < <= > >=
+        << >>
+        + -
+        * / %
+        ! (not)
+        
         -------
         lowest
         */
@@ -338,12 +344,22 @@ impl Parser {
         return match &token.kind {
             TokenKind::Or => Some(1),
             TokenKind::And => Some(2),
+
             TokenKind::DoubleEqual | TokenKind::NotEqual => Some(3),
-            TokenKind::LessThan | TokenKind::LessEqual => Some(4),
-            TokenKind::GreaterThan | TokenKind::GreaterEqual => Some(5),
-            TokenKind::Plus | TokenKind::Minus => Some(6),
-            TokenKind::Star | TokenKind::Slash | TokenKind::Percentage => Some(7),
-            TokenKind::Not => Some(8),
+
+            TokenKind::LessThan
+            | TokenKind::LessEqual
+            | TokenKind::GreaterThan
+            | TokenKind::GreaterEqual => Some(4),
+
+            TokenKind::Plus | TokenKind::Minus => Some(5),
+
+            TokenKind::Star
+            | TokenKind::Slash
+            | TokenKind::Percentage => Some(6),
+
+            TokenKind::Not => Some(7),
+
             _ => None
         };
     }
