@@ -383,8 +383,6 @@ impl<'a> SemanticAnalyzer<'a> {
             },
 
             Statement::If { condition, then_branch, else_branch, span } => {
-                // TODO: cast generics in if and while
-
                 let mut generic_expressions: &mut Vec<*mut Expression> = &mut vec![];
                 self.validate_expression(condition, &mut Some(generic_expressions));
 
