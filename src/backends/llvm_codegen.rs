@@ -338,8 +338,6 @@ impl LLVMCodeGenerator {
                 let endif_label = format!("_if_end_{}", self.if_label_counter);
                 self.if_label_counter += 1;
 
-                // TODO: Change this to not expect any type but make generate_expression return its type
-                // So it doesn't have to rely on every conditional ever to be int32
                 let (cond_code, cond_ssa, cond_type) = self.generate_expression(&condition, None)?;
                 code.push_str(&cond_code);
 
@@ -421,15 +419,16 @@ impl LLVMCodeGenerator {
                 code.push_str(&format!("{}br label %{}\n", self.indent(), cond_label));
 
                 code.push_str(&format!("{}:\n", cond_label));
-                let (cond_code, cond_ssa, cond_type) = self.generate_expression(&condition, Some(&Type::Int32))?;
+                let (cond_code, cond_ssa, cond_type) = self.generate_expression(&condition, None)?;
                 code.push_str(&cond_code);
 
                 let cond_i1_ssa = format!("%{}", self.ssa_counter);
                 self.ssa_counter += 1;
                 code.push_str(&format!(
-                    "{}{} = icmp ne i32 {}, 0\n",
+                    "{}{} = icmp ne {} {}, 0\n",
                     self.indent(),
                     cond_i1_ssa,
+                    self.map_type_to_str(&cond_type),
                     cond_ssa
                 ));
 
