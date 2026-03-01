@@ -1,3 +1,5 @@
+use std::num::IntErrorKind;
+
 use crate::token::{ Token, TokenKind };
 
 #[derive(Debug)]
@@ -10,6 +12,11 @@ pub enum LexerError {
     },
     EndOfInput,
     UnknownToken {
+        character: char,
+        line: usize,
+        column: usize
+    },
+    Overflow {
         character: char,
         line: usize,
         column: usize
@@ -273,12 +280,25 @@ impl Lexer {
                     }
                 }
                 
-                // TODO: when the literal is over 128 bits, it returns an unexpectedchar instead of overflow
-                let number = token.parse().map_err(|_| LexerError::UnexpectedChar {
-                    character: token.chars().last().unwrap_or(' '),
-                    line: start_line,
-                    column: start_column
-                })?;
+                let number = match token.parse::<i128>() {
+                    Ok(num) => num,
+                    Err(error) => match error.kind() {
+                        IntErrorKind::PosOverflow | IntErrorKind::NegOverflow => {
+                            return Err(LexerError::Overflow {
+                                character: current_char,
+                                line: start_line,
+                                column: start_column
+                            });
+                        },
+                        _ => {
+                            return Err(LexerError::UnexpectedChar {
+                                character: current_char,
+                                line: start_line,
+                                column: start_column
+                            });
+                        }
+                    }
+                };
 
                 return Ok(Token { kind: TokenKind::IntLiteral(number), line: start_line, column: start_column });
             }
