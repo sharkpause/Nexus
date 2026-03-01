@@ -159,6 +159,10 @@ fn print_expression(expr: &Expression, indent: usize) {
             }
         },
 
+        Expression::IntLiteral8 { value, span } => {
+            println!("{} Int8 {}", padding, value);
+        },
+
         Expression::IntLiteral32 { value, span } => {
             println!("{} Int32 {}", padding, value);
         },

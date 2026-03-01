@@ -78,11 +78,12 @@ impl LLVMCodeGenerator {
         return Ok(());
     }
 
-    fn map_type(&self, type_: &Type) -> &'static str {
+    fn map_type_to_str(&self, type_: &Type) -> &'static str {
         match type_ {
             Type::Int64 => return "i64",
             Type::Int32 => return "i32",
             Type::Int1 => return "i1",
+            Type::Int8 => return "i8",
             Type::Void => return "void",
             Type::Pointer(type_) => {
                 match &**type_ {
@@ -155,13 +156,13 @@ impl LLVMCodeGenerator {
 
                     output.push_str(&format!(
                         "{}{} {} @{}(",
-                        self.indent(), function_keyword, self.map_type(&function.return_type), function.name
+                        self.indent(), function_keyword, self.map_type_to_str(&function.return_type), function.name
                     ));
 
                     let mut parameter_code = String::new();
                     if function.parameters.len() > 0 {                        
                         for (index, (type_, name)) in function.parameters.iter().enumerate() {
-                            let type_llvm = self.map_type(type_);
+                            let type_llvm = self.map_type_to_str(type_);
                             
                             if index > 0 {
                                 output.push_str(", ");
@@ -266,7 +267,7 @@ impl LLVMCodeGenerator {
                     return Ok(statement_code);
                 }
 
-                let (expression_code, ssa_value) = match expression {
+                let (expression_code, ssa_value, expression_type) = match expression {
                     Some(expr) => {
                         self.generate_expression(&expr, Some(&return_type))?
                     }
@@ -278,7 +279,7 @@ impl LLVMCodeGenerator {
                 statement_code.push_str(&expression_code);
                 statement_code.push_str(&format!(
                     "{}ret {} {}\n",
-                    self.indent(), self.map_type(&return_type), ssa_value
+                    self.indent(), self.map_type_to_str(&return_type), ssa_value
                 ));
 
                 return Ok(statement_code);
@@ -290,15 +291,15 @@ impl LLVMCodeGenerator {
                 let ssa_name = &format!("%{}.addr", var_name);
                 statement_code.push_str(&format!(
                     "{}{} = alloca {}\n",
-                    self.indent(), ssa_name, self.map_type(&var_type)
+                    self.indent(), ssa_name, self.map_type_to_str(&var_type)
                 ));
 
-                let (expression_code, expression_ssa) = self.generate_expression(&initializer, Some(&var_type))?;
+                let (expression_code, expression_ssa, expression_type) = self.generate_expression(&initializer, Some(&var_type))?;
 
                 statement_code.push_str(&expression_code);
                 statement_code.push_str(&format!(
                     "{}store {} {}, {}* {}\n",
-                    self.indent(), self.map_type(&var_type), expression_ssa, self.map_type(&var_type), ssa_name
+                    self.indent(), self.map_type_to_str(&var_type), expression_ssa, self.map_type_to_str(&var_type), ssa_name
                 ));
 
                 self.add_variable(&var_name, var_type, ssa_name);
@@ -311,13 +312,13 @@ impl LLVMCodeGenerator {
                 
                 let var_context = self.lookup_variable(&name)?;
 
-                let (expression_code, expression_ssa) =
+                let (expression_code, expression_ssa, cond_type) =
                     self.generate_expression(&value, Some(&var_context.var_type))?;
 
                 statement_code.push_str(&expression_code);
                 statement_code.push_str(&format!(
                     "{}store {} {}, {}* {}\n",
-                    self.indent(), self.map_type(&var_context.var_type), expression_ssa, self.map_type(&var_context.var_type), var_context.ssa_name
+                    self.indent(), self.map_type_to_str(&var_context.var_type), expression_ssa, self.map_type_to_str(&var_context.var_type), var_context.ssa_name
                 ));
 
                 return Ok(statement_code);
@@ -337,16 +338,18 @@ impl LLVMCodeGenerator {
                 let endif_label = format!("_if_end_{}", self.if_label_counter);
                 self.if_label_counter += 1;
 
-                println!("if");
-                let (cond_code, cond_ssa) = self.generate_expression(&condition, Some(&Type::Int32))?;
+                // TODO: Change this to not expect any type but make generate_expression return its type
+                // So it doesn't have to rely on every conditional ever to be int32
+                let (cond_code, cond_ssa, cond_type) = self.generate_expression(&condition, None)?;
                 code.push_str(&cond_code);
 
                 let cond_i1_ssa = format!("%{}", self.ssa_counter);
                 self.ssa_counter += 1;
                 code.push_str(&format!(
-                    "{}{} = icmp ne i32 {}, 0\n",
+                    "{}{} = icmp ne {} {}, 0\n",
                     self.indent(),
                     cond_i1_ssa,
+                    self.map_type_to_str(&cond_type),
                     cond_ssa
                 ));
 
@@ -418,7 +421,7 @@ impl LLVMCodeGenerator {
                 code.push_str(&format!("{}br label %{}\n", self.indent(), cond_label));
 
                 code.push_str(&format!("{}:\n", cond_label));
-                let (cond_code, cond_ssa) = self.generate_expression(&condition, Some(&Type::Int32))?;
+                let (cond_code, cond_ssa, cond_type) = self.generate_expression(&condition, Some(&Type::Int32))?;
                 code.push_str(&cond_code);
 
                 let cond_i1_ssa = format!("%{}", self.ssa_counter);
@@ -471,7 +474,7 @@ impl LLVMCodeGenerator {
         }
     }
 
-    fn generate_expression(&mut self, expression: &Expression, expected_type: Option<&Type>) -> Result<(String, String), CodegenError> {
+    fn generate_expression(&mut self, expression: &Expression, expected_type: Option<&Type>) -> Result<(String, String, Type), CodegenError> {
         match expression {
             Expression::IntLiteral { value, span } => {
                 // let some_expected_type = expected_type.expect("An expected type must be passed at this point");
@@ -498,7 +501,7 @@ impl LLVMCodeGenerator {
 
             Expression::Variable { name, type_, span } => {
                 let variable_pointer = self.lookup_variable(name)?;
-                let ssa_type = self.map_type(&variable_pointer.var_type);
+                let ssa_type = self.map_type_to_str(&variable_pointer.var_type);
 
                 let mut ssa = format!("%{}", self.ssa_counter);
                 let mut code = format!(
@@ -508,8 +511,8 @@ impl LLVMCodeGenerator {
                 self.ssa_counter += 1;
 
                 if let Some(expected) = expected_type {
-                    if variable_pointer.var_type.same_kind(expected) {
-                        return Ok((code, ssa));
+                    if variable_pointer.var_type.is_assignable_to(expected) {
+                        return Ok((code, ssa, variable_pointer.var_type));
                     }
 
                     let new_ssa = format!("%{}", self.ssa_counter);
@@ -521,13 +524,13 @@ impl LLVMCodeGenerator {
                         new_ssa,
                         ssa_type,
                         ssa,
-                        self.map_type(expected)
+                        self.map_type_to_str(expected)
                     ));
 
                     ssa = new_ssa;
                 }
             
-                return Ok((code, ssa));
+                return Ok((code, ssa, variable_pointer.var_type));
             },
 
             Expression::FunctionCall { called, arguments, span } => {
@@ -554,7 +557,7 @@ impl LLVMCodeGenerator {
                     .zip(argument_ssas)
                     .map(
                         |(arg_type, arg_ssa)|
-                        format!("{} {}", self.map_type(arg_type), arg_ssa)
+                        format!("{} {}", self.map_type_to_str(arg_type), arg_ssa)
                     )
                     .collect::<Vec<_>>()
                     .join(", ");
@@ -567,30 +570,31 @@ impl LLVMCodeGenerator {
                         if type_.is_void() {
                             code.push_str(&format!(
                                 "{}call {} @{}({})\n",
-                                self.indent(), self.map_type(type_), function_name, argument_code
+                                self.indent(), self.map_type_to_str(type_), function_name, argument_code
                             ));
                         } else {
                             code.push_str(&format!(
                                 "{}{} = call {} @{}({})\n",
-                                self.indent(), function_call_ssa, self.map_type(type_), function_name, argument_code
+                                self.indent(), function_call_ssa, self.map_type_to_str(type_), function_name, argument_code
                             ));
                         }
                     },
                     None => unreachable!("Return type is guaranteed")
                 }
 
-                return Ok((code, function_call_ssa));
+                return Ok((code, function_call_ssa, return_type.clone().expect("Return type is guaranteed")));
             }
 
             Expression::BinaryOperation { left, operator, right, span } => {
-                let (left_code, left_ssa) = self.generate_expression(left, expected_type)?;
-                let (right_code, right_ssa) = self.generate_expression(right, expected_type)?;
+                let (left_code, left_ssa, left_ssa_type) = self.generate_expression(left, expected_type)?;
+                let (right_code, right_ssa, right_ssa_type) = self.generate_expression(right, expected_type)?;
 
                 let mut code = String::new();
                 code.push_str(&left_code);
                 code.push_str(&right_code);
 
                 let mut ssa: String;
+                let mut returned_type: Type = left_ssa_type.clone();
 
                 match operator {
                     // Arithmetic
@@ -617,7 +621,7 @@ impl LLVMCodeGenerator {
                             self.indent(),
                             ssa,
                             op_str,
-                            self.map_type(ssa_type),
+                            self.map_type_to_str(ssa_type),
                             left_ssa,
                             right_ssa
                         ));
@@ -639,16 +643,19 @@ impl LLVMCodeGenerator {
                         let cmp_ssa = format!("%{}", self.ssa_counter);
                         self.ssa_counter += 1;
                         code.push_str(&format!(
-                            "{}{} = icmp {} i32 {}, {}\n",
+                            "{}{} = icmp {} {} {}, {}\n",
                             self.indent(),
                             cmp_ssa,
                             cmp_str,
+                            self.map_type_to_str(&left_ssa_type),
                             left_ssa,
                             right_ssa
                         ));
 
                         ssa = format!("%{}", self.ssa_counter);
                         self.ssa_counter += 1;
+
+                        returned_type = Type::Int1;
                         
                         if let Some(expected) = expected_type {
                             // Converts i1 to expected type in cases where the result is stored
@@ -659,7 +666,7 @@ impl LLVMCodeGenerator {
                                 self.indent(),
                                 ssa,
                                 cmp_ssa,
-                                self.map_type(expected)
+                                self.map_type_to_str(expected)
                             ));
                         } else {
                             // If no type are expected, no conversion needs to happen
@@ -716,7 +723,7 @@ impl LLVMCodeGenerator {
                                 self.indent(),
                                 zext_ssa,
                                 ssa,
-                                self.map_type(expected)
+                                self.map_type_to_str(expected)
                             ));
                             ssa = zext_ssa;
                         }
@@ -739,17 +746,15 @@ impl LLVMCodeGenerator {
                         ssa = format!("%{}", self.ssa_counter);
                         self.ssa_counter += 1;
 
-                        if let Some(expected) = expected_type {
-                            code.push_str(&format!(
-                                "{}{} = {} {} {}, {}\n",
-                                self.indent(),
-                                ssa,
-                                op_str,
-                                self.map_type(expected),
-                                left_ssa,
-                                right_ssa
-                            ));
-                        }
+                        code.push_str(&format!(
+                            "{}{} = {} {} {}, {}\n",
+                            self.indent(),
+                            ssa,
+                            op_str,
+                            self.map_type_to_str(&right_ssa_type),
+                            left_ssa,
+                            right_ssa
+                        ));
                     },
 
                     Operator::Not => {
@@ -759,11 +764,13 @@ impl LLVMCodeGenerator {
                     // _ => unimplemented!("Other operators not yet"),
                 }
 
-                return Ok((code, ssa));
+                // Left or right shouldn't matter when returning type
+                // Since semantic analysis guarantees left and right are the same type
+                return Ok((code, ssa, returned_type));
             }
 
             Expression::UnaryOperation { operator, operand, span } => {
-                let (operand_code, operand_ssa) = self.generate_expression(operand, expected_type)?;
+                let (operand_code, operand_ssa, operand_type) = self.generate_expression(operand, expected_type)?;
                 let operand_type = self.infer_expression_type(operand);
 
                 let ssa = format!("%{}", self.ssa_counter);
@@ -776,7 +783,7 @@ impl LLVMCodeGenerator {
                             operand_code, 
                             self.indent(),
                             ssa,
-                            self.map_type(&operand_type),
+                            self.map_type_to_str(&operand_type),
                             operand_ssa
                         )
                     },
@@ -788,15 +795,26 @@ impl LLVMCodeGenerator {
                         format!(
                             "{}\n{}{} = icmp eq {} {}, 0\n{}{} = zext i1 {} to {}\n",
                             operand_code,
-                            self.indent(), tmp_ssa, self.map_type(&operand_type), operand_ssa,
-                            self.indent(), ssa, tmp_ssa, self.map_type(&operand_type)
+                            self.indent(), tmp_ssa, self.map_type_to_str(&operand_type), operand_ssa,
+                            self.indent(), ssa, tmp_ssa, self.map_type_to_str(&operand_type)
                         )
                     },
                     _ => unimplemented!("Other unary operators not implemented yet"),
                 };
 
-                return Ok((code, ssa));
-            }
+                return Ok((code, ssa, operand_type));
+            },
+
+            Expression::IntLiteral8 { value, span } => {
+                let ssa = format!("%{}", self.ssa_counter);
+                let code = format!(
+                    "{}{} = add i8 0, {}\n",
+                    self.indent(), ssa, value
+                );
+                self.ssa_counter += 1;
+
+                return Ok((code, ssa, Type::Int8));
+            },
 
             Expression::IntLiteral32 { value, span } => {
                 let ssa = format!("%{}", self.ssa_counter);
@@ -806,7 +824,7 @@ impl LLVMCodeGenerator {
                 );
                 self.ssa_counter += 1;
 
-                return Ok((code, ssa));
+                return Ok((code, ssa, Type::Int32));
             },
 
             Expression::IntLiteral64 { value, span } => {
@@ -817,7 +835,7 @@ impl LLVMCodeGenerator {
                 );
                 self.ssa_counter += 1;
 
-                return Ok((code, ssa));
+                return Ok((code, ssa, Type::Int64));
             },
 
             Expression::StringLiteral { value, span } => {
@@ -839,7 +857,7 @@ impl LLVMCodeGenerator {
                     self.indent(), ssa, string_literal_length, string_literal_length, string_literal_name
                 );
 
-                return Ok((code, ssa));
+                return Ok((code, ssa, Type::Pointer(Box::from(Type::Int8))));
             },
 
             Expression::BooleanLiteral { value, span } => {
@@ -848,7 +866,7 @@ impl LLVMCodeGenerator {
 
                 if let Some(expected) = expected_type {
                     println!("{:?}", expected);
-                    expression_type = self.map_type(expected);
+                    expression_type = self.map_type_to_str(expected);
                 }
 
                 let ssa = format!("%{}", self.ssa_counter);
@@ -858,7 +876,7 @@ impl LLVMCodeGenerator {
                 );
                 self.ssa_counter += 1;
 
-                return Ok((code, ssa));
+                return Ok((code, ssa, Type::Int1));
             },
         }
     }

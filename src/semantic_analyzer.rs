@@ -332,7 +332,7 @@ impl<'a> SemanticAnalyzer<'a> {
                     // No race condition will happen because validate_expression does not do any additional operations
                     // on the expressions inside generics.
 
-                    provided_type = match self.cast_generic_type_to_default(generic_typed_expression, &return_type) {
+                    provided_type = match self.cast_generic_to_target(generic_typed_expression, &return_type) {
                         Ok(t) => t,
                         Err(_) => return, // error already pushed
                     }
@@ -384,8 +384,16 @@ impl<'a> SemanticAnalyzer<'a> {
 
             Statement::If { condition, then_branch, else_branch, span } => {
                 // TODO: cast generics in if and while
-                
-                self.validate_expression(condition, &mut None);
+
+                let mut generic_expressions: &mut Vec<*mut Expression> = &mut vec![];
+                self.validate_expression(condition, &mut Some(generic_expressions));
+
+                for generic_expression_pointer in generic_expressions {
+                    let generic_expression = unsafe { &mut **generic_expression_pointer };
+
+                    println!("{:?}", self.cast_generic_to_default(generic_expression));
+                }
+
                 self.validate_statement(then_branch);
                 
                 if let Some(else_body) = else_branch {
@@ -432,12 +440,12 @@ impl<'a> SemanticAnalyzer<'a> {
                     var_symbol_type = var_symbol.var_type.clone();
                 }
 
-                self.cast_generic_type_to_default(value, &var_symbol_type);
+                self.cast_generic_to_target(value, &var_symbol_type);
             }
 
             Statement::VariableDeclare { var_type, name, initializer, span } => {
                 self.validate_expression(initializer, &mut None);
-                self.cast_generic_type_to_default(initializer, var_type);
+                self.cast_generic_to_target(initializer, var_type);
 
                 if let Some(init_type) = self.infer_expression_type(initializer) {
                     if init_type.is_void() {
@@ -500,28 +508,26 @@ impl<'a> SemanticAnalyzer<'a> {
             },
 
             Expression::BinaryOperation { left, operator, right, span } => {
-                let mut left_type = self.infer_expression_type(left)?;
-                let mut right_type = self.infer_expression_type(right)?;
+                let left_type = self.infer_expression_type(left)?;
+                let right_type = self.infer_expression_type(right)?;
 
-                // TODO: Handle GenericInt adoption, need to change this later
-                // Otherwise it'd look ugly when I have GenericFloat, etc
-                if left_type.same_kind(&Type::GenericInt) && !right_type.same_kind(&Type::GenericInt) {
-                    self.widen_expression(left, &right_type);
-                    left_type = right_type.clone();
-                } else if right_type.same_kind(&Type::GenericInt) && !left_type.same_kind(&Type::GenericInt) {
-                    self.widen_expression(right, &left_type);
-                    right_type = left_type.clone();
+                match self.unify_binary_types(left, right, &left_type, &right_type) {
+                    Some(result_type) => Some(result_type),
+                    None => {
+                        self.push_error(
+                            SemanticError::MismatchedBinaryOperationType {
+                                left_type: left_type,
+                                right_type: right_type,
+                                span: *span,
+                            }
+                        );
+                        None
+                    }
                 }
+            },
 
-                // TODO: Add type checking for arithmetic expressions so you can't do things like
-                // "penis" + "balls"        string + string should be disallowed.
-                if left_type.same_kind(&right_type) {
-                // if left_type.is_assignable_to(&right_type) {
-                    return Some(left_type);
-                } else {
-                    self.push_error(SemanticError::MismatchedBinaryOperationType { left_type, right_type, span: *span });
-                    return None;
-                }
+            Expression::IntLiteral8 { value, span } => {
+                return Some(Type::Int8);
             },
 
             Expression::IntLiteral32 { value, span } => {
@@ -540,6 +546,39 @@ impl<'a> SemanticAnalyzer<'a> {
                 return Some(Type::Int1);
             }
         }
+    }
+
+    fn unify_binary_types(
+        &mut self,
+        left: &mut Expression,
+        right: &mut Expression,
+        left_type: &Type,
+        right_type: &Type,
+    ) -> Option<Type> {
+        if left_type.same_kind(&right_type) {
+            return Some(left_type.clone());
+        }
+
+        if left_type.is_generic() && !right_type.is_generic() {
+            self.widen_expression(left, &right_type);
+            return Some(right_type.clone());
+        }
+
+        if right_type.is_generic() && !left_type.is_generic() {
+            self.widen_expression(right, &left_type);
+            return Some(left_type.clone());
+        }
+
+        if left_type.is_generic() && right_type.is_generic() {
+            let default = Type::Int32;
+            self.widen_expression(left, &default);
+            self.widen_expression(right, &default);
+            return Some(default);
+        }
+
+        // TODO: numeric promotions here later
+
+        None
     }
 
     fn validate_expression(
@@ -653,6 +692,10 @@ impl<'a> SemanticAnalyzer<'a> {
                 return Ok(Type::GenericInt);
             },
 
+            Expression::IntLiteral8 { value, span } => {
+                return Ok(Type::Int8);
+            },
+
             Expression::IntLiteral32 { value, span } => {
                 return Ok(Type::Int32);
             },
@@ -737,6 +780,27 @@ impl<'a> SemanticAnalyzer<'a> {
                 self.validate_argument(operand, expected_argument)?;
             },
 
+            Expression::IntLiteral8 { value, span } => {
+                match &expected_argument.0 {
+                    Type::Int64 => {
+                        *provided_argument = Expression::IntLiteral64 { value: *value as i64, span: *span };
+                    },
+                    Type::Int32 => {
+                        *provided_argument = Expression::IntLiteral32 { value: *value as i32, span: *span };
+                    },
+                    Type::Int8 => {
+                        // provided argument is already int8
+                    },
+                    type_ => {
+                        self.push_error(SemanticError::MismatchedArgumentType {
+                            expected_type: type_.clone(),
+                            provided_type: Type::Int32,
+                            span: *span
+                        });
+                    }
+                }
+            },
+
             Expression::IntLiteral32 { value, span } => {
                 match &expected_argument.0 {
                     Type::Int64 => {
@@ -745,7 +809,7 @@ impl<'a> SemanticAnalyzer<'a> {
                     Type::Int32 => {
                         // provided_argument is already an int32
                     },
-                    (type_) => {
+                    type_ => {
                         self.push_error(SemanticError::MismatchedArgumentType {
                             expected_type: type_.clone(),
                             provided_type: Type::Int32,
@@ -758,16 +822,9 @@ impl<'a> SemanticAnalyzer<'a> {
             Expression::IntLiteral64 { value, span } => {
                 match &expected_argument.0 {
                     Type::Int64 => {
-                        // provided_argument is already an int32
+                        // provided_argument is already an int64
                     },
-                    Type::Int32 => {
-                        self.push_error(SemanticError::MismatchedArgumentType {
-                            expected_type: Type::Int32,
-                            provided_type: Type::Int64,
-                            span: *span
-                        });
-                    },
-                    (type_) => {
+                    type_ => {
                         self.push_error(SemanticError::MismatchedArgumentType {
                             expected_type: type_.clone(),
                             provided_type: Type::Int64,
@@ -789,10 +846,113 @@ impl<'a> SemanticAnalyzer<'a> {
         return Ok(());
     }
 
-    fn cast_generic_type_to_default(&mut self, expression: &mut Expression, target_type: &Type) -> Result<Type, ()> {
+    fn cast_generic_to_default(&mut self, expression: &mut Expression) -> Result<Type, ()> {
+        match expression {
+            Expression::IntLiteral { value, span } => {
+                if *value >= i8::MIN as i128 && *value <= i8::MAX as i128 {
+                    *expression = Expression::IntLiteral8 {
+                        value: *value as i8,
+                        span: *span
+                    };
+
+                    return Ok(Type::Int8);
+                // } else if *value >= i16::MIN as i128 && *value <= i16::MAX as i128 {
+                //     Type::I16
+                } else if *value >= i32::MIN as i128 && *value <= i32::MAX as i128 {
+                    *expression = Expression::IntLiteral32 {
+                        value: *value as i32,
+                        span: *span
+                    };
+
+                    return Ok(Type::Int32);
+                } else {
+                    *expression = Expression::IntLiteral64 {
+                        value: *value as i64,
+                        span: *span
+                    };
+
+                    return Ok(Type::Int64);
+                };
+            },
+
+            // Expression::Variable { type_, span, .. } => {
+            //     if let Some(var_type) = type_ {
+            //         // Only rewrite if the variable's type is still generic
+            //         if var_type.same_kind(&Type::GenericInt) {
+            //             *type_ = Some(target_type.clone());
+            //             return Ok(target_type.clone());
+            //         }
+            //     }
+
+            //     return Err(());
+            // },
+
+            // Expression::BinaryOperation { left, right, span, .. } => {
+            //     self.cast_generic_to_target(left, target_type);
+            //     self.cast_generic_to_target(right, target_type);
+
+            //     let left_type = self.infer_expression_type(left);
+            //     let right_type = self.infer_expression_type(right);
+            //     if let (Some(l), Some(r)) = (left_type, right_type) {
+            //         if !l.same_kind(&r) {
+            //             self.push_error(SemanticError::MismatchedBinaryOperationType {
+            //                 left_type: l,
+            //                 right_type: r,
+            //                 span: *span,
+            //             });
+
+            //             return Err(());
+            //         }
+
+            //         return Ok(l);
+            //     }
+
+            //     return Err(());
+            // },
+            // Expression::UnaryOperation { operand, .. } => {
+            //     return self.cast_generic_to_target(operand, target_type);
+            // },
+
+            // Expression::FunctionCall { called, arguments, .. } => {
+            //     return Err(());
+            //     // Return error for now because why would a function call be generic
+                
+            //     // self.cast_to_default_types(called, target_type);
+
+            //     // for arg in arguments.iter_mut() {
+            //     //     self.cast_to_default_types(arg, target_type);
+            //     // }
+            // },
+
+            Expression::IntLiteral32 { .. } => return Ok(Type::Int32),
+            Expression::IntLiteral64 { .. } => return Ok(Type::Int64),
+        
+            Expression::StringLiteral { value, span } => {
+                return Ok(Type::Pointer(Box::new(Type::Int8)));
+            },
+
+            Expression::BooleanLiteral { value, span } => return Ok(Type::Int1),
+
+            _ => {
+                println!("\n\n{:?}", expression);
+                unreachable!("cast_generic_to_default shouldn't be used here");
+            }
+        }
+    }
+
+    fn cast_generic_to_target(&mut self, expression: &mut Expression, target_type: &Type) -> Result<Type, ()> {
         match expression {
             Expression::IntLiteral { value, span } => {
                 match target_type {
+                    Type::Int8 => {
+                        if *value < i8::MIN as i128 || *value > i8::MAX as i128 {
+                            self.push_error(SemanticError::IntegerOverflow { span: *span });
+                            return Err(());
+                        }
+
+                        *expression = Expression::IntLiteral8 { value: *value as i8, span: *span };
+                        return Ok(Type::Int8);
+                    },
                     Type::Int32 => {
                         if *value < i32::MIN as i128 || *value > i32::MAX as i128 {
                             self.push_error(SemanticError::IntegerOverflow { span: *span });
@@ -837,8 +997,8 @@ impl<'a> SemanticAnalyzer<'a> {
             },
 
             Expression::BinaryOperation { left, right, span, .. } => {
-                self.cast_generic_type_to_default(left, target_type);
-                self.cast_generic_type_to_default(right, target_type);
+                self.cast_generic_to_target(left, target_type);
+                self.cast_generic_to_target(right, target_type);
 
                 let left_type = self.infer_expression_type(left);
                 let right_type = self.infer_expression_type(right);
@@ -859,7 +1019,7 @@ impl<'a> SemanticAnalyzer<'a> {
                 return Err(());
             },
             Expression::UnaryOperation { operand, .. } => {
-                return self.cast_generic_type_to_default(operand, target_type);
+                return self.cast_generic_to_target(operand, target_type);
             },
 
             Expression::FunctionCall { called, arguments, .. } => {
@@ -873,6 +1033,7 @@ impl<'a> SemanticAnalyzer<'a> {
                 // }
             },
 
+            Expression::IntLiteral8 { .. } => return Ok(Type::Int8),
             Expression::IntLiteral32 { .. } => return Ok(Type::Int32),
             Expression::IntLiteral64 { .. } => return Ok(Type::Int64),
         
@@ -887,6 +1048,15 @@ impl<'a> SemanticAnalyzer<'a> {
     fn widen_expression(&mut self, expression: &mut Expression, target_type: &Type) {
         match expression {
             // -------- literals --------
+            Expression::IntLiteral8 { value, span } => {
+                if target_type.same_kind(&Type::Int64) {
+                    *expression = Expression::IntLiteral8 {
+                        value: *value as i8,
+                        span: *span,
+                    };
+                }
+            }
+
             Expression::IntLiteral32 { value, span } => {
                 if target_type.same_kind(&Type::Int64) {
                     *expression = Expression::IntLiteral64 {
@@ -950,6 +1120,15 @@ impl<'a> SemanticAnalyzer<'a> {
 
             Expression::IntLiteral { value, span } => {
                 match target_type {
+                    Type::Int8 => {
+                        if *value > i8::MAX as i128 || *value < i8::MIN as i128 {
+                            self.push_error(SemanticError::IntegerOverflow { span: *span });
+                        }
+                        *expression = Expression::IntLiteral8 {
+                            value: *value as i8,
+                            span: *span,
+                        };
+                    },
                     Type::Int32 => {
                         if *value > i32::MAX as i128 || *value < i32::MIN as i128 {
                             self.push_error(SemanticError::IntegerOverflow { span: *span });
@@ -958,7 +1137,7 @@ impl<'a> SemanticAnalyzer<'a> {
                             value: *value as i32,
                             span: *span,
                         };
-                    }
+                    },
                     Type::Int64 => {
                         if *value > i64::MAX as i128 || *value < i64::MIN as i128 {
                             self.push_error(SemanticError::IntegerOverflow { span: *span });
@@ -967,7 +1146,7 @@ impl<'a> SemanticAnalyzer<'a> {
                             value: *value as i64,
                             span: *span,
                         };
-                    }
+                    },
                     _ => {
                         self.push_error(SemanticError::InvalidTypeWidening {
                             from_type: Type::GenericInt,

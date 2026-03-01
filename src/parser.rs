@@ -105,6 +105,11 @@ pub enum Expression {
         value: i128,
         span: Span,
     },
+
+    IntLiteral8 {
+        value: i8,
+        span: Span,
+    },
     
     IntLiteral32 {
         value: i32,
@@ -191,6 +196,23 @@ impl Type {
             (a, b) => a.same_kind(b)
         }
     }
+
+    pub fn is_generic(&self) -> bool {
+        match self {
+            Type::GenericInt => true,
+            _ => false
+        }
+    }
+
+    // pub fn is_same_generic(&self, other: &Type) -> bool {
+    //     match (self, other) {
+    //         (Type::GenericInt, t) if t.is_integer() => true,
+    //         (t, Type::GenericInt) if t.is_integer() => true,
+    //         (Type::Int32, Type::Int64) => true,
+    //         (Type::Int64, Type::Int32) => true,
+    //         (a, b) => a.same_kind(b)
+    //     }
+    // }
 }
 
 #[derive(Debug, Clone, Copy)]
