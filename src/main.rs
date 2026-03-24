@@ -176,7 +176,11 @@ fn print_expression(expr: &Expression, indent: usize) {
         },
 
         Expression::BooleanLiteral { value, span } => {
-            println!("{} Boolean literal: {}", padding, value)
+            println!("{} Boolean literal: {}", padding, value);
+        },
+
+        Expression::NullLiteral { span } => {
+            println!("{} Null literal", padding);
         }
     }
 }

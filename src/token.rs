@@ -3,6 +3,7 @@ use std::mem::discriminant;
 #[derive(Debug, Clone)]
 pub struct Token {
     pub kind: TokenKind,
+    pub pointer_depth: usize,
     pub line: usize,
     pub column: usize,
 }
@@ -21,6 +22,7 @@ pub enum TokenKind {
     Int32Type,
     Int64Type,
     Identifier(String),
+    NullValue,
     Plus,
     Minus,
     Star,

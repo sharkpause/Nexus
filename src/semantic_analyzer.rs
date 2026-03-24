@@ -518,7 +518,7 @@ impl<'a> SemanticAnalyzer<'a> {
                 let left_type = self.infer_expression_type(left)?;
                 let right_type = self.infer_expression_type(right)?;
 
-                match self.unify_binary_types(left, right, &left_type, &right_type) {
+                match self.unify_binary_types(left, right, &left_type, &right_type, operator) {
                     Some(result_type) => Some(result_type),
                     None => {
                         self.push_error(
@@ -551,6 +551,10 @@ impl<'a> SemanticAnalyzer<'a> {
 
             Expression::BooleanLiteral { value, span } => {
                 return Some(Type::Int1);
+            },
+
+            Expression::NullLiteral { span } => {
+                return Some(Type::Null);
             }
         }
     }
@@ -561,6 +565,7 @@ impl<'a> SemanticAnalyzer<'a> {
         right: &mut Expression,
         left_type: &Type,
         right_type: &Type,
+        operator: &Operator
     ) -> Option<Type> {
         if left_type.same_kind(&right_type) {
             return Some(left_type.clone());
@@ -583,10 +588,19 @@ impl<'a> SemanticAnalyzer<'a> {
             return Some(default);
         }
 
+        // TODO: Validate pointer operations, decide what's allowed, what's unimplemented and what will never be allowed
+        if left_type.same_kind(&Type::Null) && right_type.is_pointer() {
+            return Some(right_type.clone());
+        }
+
+        if right_type.same_kind(&Type::Null) && left_type.is_pointer() {
+            return Some(left_type.clone());
+        }
+
         // TODO: numeric promotions here later, fuck you past Don why so vague
         // the fuck you mean numeric promotions here later
 
-        None
+        return None;
     }
 
     fn validate_expression(
@@ -762,7 +776,11 @@ impl<'a> SemanticAnalyzer<'a> {
 
             Expression::BooleanLiteral { value, span } => {
                 return Ok(Type::Int1);
-            }
+            },
+
+            Expression::NullLiteral { span } => {
+                return Ok(Type::Null);
+            },
         }
     }
 
@@ -895,8 +913,12 @@ impl<'a> SemanticAnalyzer<'a> {
             },
 
             Expression::BooleanLiteral { value, span } => {
-                // ye
-            }
+                // mmhm
+            },
+
+            Expression::NullLiteral { span } => {
+                // aight
+            },
         }
 
         return Ok(());
@@ -991,6 +1013,7 @@ impl<'a> SemanticAnalyzer<'a> {
             },
 
             Expression::BooleanLiteral { value, span } => return Ok(Type::Int1),
+            Expression::NullLiteral { span } => return Ok(Type::Null),
 
             _ => {
                 unreachable!("cast_generic_to_default shouldn't be used here");
@@ -1093,6 +1116,8 @@ impl<'a> SemanticAnalyzer<'a> {
             Expression::IntLiteral8 { .. } => return Ok(Type::Int8),
             Expression::IntLiteral32 { .. } => return Ok(Type::Int32),
             Expression::IntLiteral64 { .. } => return Ok(Type::Int64),
+            Expression::NullLiteral { .. } => return Ok(Type::Null),
+            // TODO: Figure out if this is safe or not, casting a generic to null might not be valid
         
             Expression::StringLiteral { value, span } => {
                 return Ok(Type::Pointer(Box::new(Type::Int8)));
@@ -1199,7 +1224,11 @@ impl<'a> SemanticAnalyzer<'a> {
 
             Expression::BooleanLiteral { value, span } => {
                 // Nothing to widen here
-            }
+            },
+
+            Expression::NullLiteral { span } => {
+                // Nothing to widen here
+            },
         }
     }
 }

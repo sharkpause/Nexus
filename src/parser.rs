@@ -148,7 +148,11 @@ pub enum Expression {
     BooleanLiteral {
         value: bool,
         span: Span
-    }
+    },
+
+    NullLiteral {
+        span: Span
+    },
 }
 
 impl Expression {
@@ -169,6 +173,7 @@ pub enum Type {
     Int64,
     GenericInt, // For integer literals that will be turned into something more specific by semantic analysis
     Void,
+    Null,
     Pointer(Box<Type>),
 }
 
@@ -193,6 +198,10 @@ impl Type {
             (Type::GenericInt, t) if t.is_integer() => true,
             (t, Type::GenericInt) if t.is_integer() => true,
             (Type::Int32, Type::Int64) => true,
+
+            (Type::Pointer(..), Type::Null) => true,
+            (Type::Null, Type::Pointer(..)) => true,
+
             (a, b) => a.same_kind(b)
         }
     }
@@ -200,6 +209,13 @@ impl Type {
     pub fn is_generic(&self) -> bool {
         match self {
             Type::GenericInt => true,
+            _ => false
+        }
+    }
+
+    pub fn is_pointer(&self) -> bool {
+        match self {
+            Type::Pointer(..) => true,
             _ => false
         }
     }
@@ -285,51 +301,45 @@ impl Parser {
             .peek_token(0)
             .ok_or(ParserError::UnexpectedEndOfInput)?;
 
+        let mut pointer_depth = token.pointer_depth;
+
         let mut type_ =
             match &token.kind {
                 TokenKind::Int8Type => {
-                    self.consume_token();
                     Type::Int8
                 },
 
                 TokenKind::Int32Type => {
-                    self.consume_token();
                     Type::Int32
                 },
                 
                 TokenKind::Int64Type => {
-                    self.consume_token();
                     Type::Int64
                 },
                 
                 TokenKind::VoidType => {
-                    self.consume_token();
                     Type::Void
                 },
 
                 TokenKind::StringType => {
-                    self.consume_token();
+                    pointer_depth -= 1; // Because we already wrap it in one pointer
                     Type::Pointer(Box::new(Type::Int8))
                 },
 
                 TokenKind::BoolType => {
-                    self.consume_token();
                     Type::Int1
                 }
                 
                 _ => return Err(ParserError::UnexpectedToken(token.clone())),
             };
 
-        if let Some(next_token) = self.peek_token(0) {
-            match next_token.kind {
-                TokenKind::Star => {
-                    self.consume_token();
-                    type_ = Type::Pointer(Box::new(type_));
-                },
-
-                _ => {}
-            }
+        self.consume_token();
+        
+        for _ in 0..pointer_depth {
+            type_ = Type::Pointer(Box::new(type_));
         }
+
+        println!("{:?}", type_);
 
         return Ok(type_);
         
@@ -598,8 +608,10 @@ impl Parser {
                             if next_token.same_kind(&TokenKind::If) {
                                 self.consume_token(); // else
                                 self.consume_token(); // if
+                                
                                 conditions.push(self.parse_expression(0)?);
                                 bodies.push(self.parse_block()?);
+                                
                                 continue;
                             }
                         }
@@ -791,6 +803,12 @@ impl Parser {
                 self.consume_token();
 
                 Expression::BooleanLiteral { value: false, span }
+            },
+
+            TokenKind::NullValue => {
+                self.consume_token();
+
+                Expression::NullLiteral { span }
             },
 
             _ => return Err(ParserError::UnexpectedToken(current_token.clone())),

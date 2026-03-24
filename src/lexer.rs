@@ -68,7 +68,7 @@ impl Lexer {
         }
     }
 
-    fn single_char_token(&mut self) -> Option<Token> {
+    fn single_char_token(&mut self, pointer_depth: usize) -> Option<Token> {
         let character = self.peek_char(0)?;
         let line = self.line;
         let column = self.column;
@@ -99,12 +99,13 @@ impl Lexer {
 
         return Some(Token {
             kind,
+            pointer_depth,
             line,
             column,
         });
     }
 
-    fn double_char_token(&mut self) -> Option<Token> {
+    fn double_char_token(&mut self, pointer_depth: usize) -> Option<Token> {
         let line = self.line;
         let column = self.column;
 
@@ -116,6 +117,7 @@ impl Lexer {
 
                     return Some(Token {
                         kind: TokenKind::DoubleEqual,
+                        pointer_depth,
                         line,
                         column,
                     });
@@ -130,6 +132,7 @@ impl Lexer {
 
                     return Some(Token {
                         kind: TokenKind::NotEqual,
+                        pointer_depth,
                         line,
                         column,
                     });
@@ -138,6 +141,7 @@ impl Lexer {
 
                     return Some(Token {
                         kind: TokenKind::Not,
+                        pointer_depth,
                         line,
                         column,
                     });
@@ -150,6 +154,7 @@ impl Lexer {
 
                     return Some(Token {
                         kind: TokenKind::LessEqual,
+                        pointer_depth,
                         line,
                         column,
                     });
@@ -159,6 +164,7 @@ impl Lexer {
 
                     return Some(Token {
                         kind: TokenKind::ShiftLeft,
+                        pointer_depth,
                         line,
                         column,
                     });
@@ -173,6 +179,7 @@ impl Lexer {
 
                     return Some(Token {
                         kind: TokenKind::GreaterEqual,
+                        pointer_depth,
                         line,
                         column,
                     });
@@ -182,6 +189,7 @@ impl Lexer {
 
                     return Some(Token {
                         kind: TokenKind::ShiftRight,
+                        pointer_depth,
                         line,
                         column,
                     });
@@ -196,6 +204,7 @@ impl Lexer {
 
                     return Some(Token {
                         kind: TokenKind::And,
+                        pointer_depth,
                         line,
                         column,
                     });
@@ -210,6 +219,7 @@ impl Lexer {
 
                     return Some(Token {
                         kind: TokenKind::Or,
+                        pointer_depth,
                         line,
                         column,
                     });
@@ -230,6 +240,7 @@ impl Lexer {
 
             let start_line = self.line;
             let start_column = self.column;
+            let mut pointer_depth: usize = 0;
 
             // Comments
             if current_char == '/' {
@@ -300,7 +311,7 @@ impl Lexer {
                     }
                 };
 
-                return Ok(Token { kind: TokenKind::IntLiteral(number), line: start_line, column: start_column });
+                return Ok(Token { kind: TokenKind::IntLiteral(number), pointer_depth, line: start_line, column: start_column });
             }
 
             // String literals
@@ -318,6 +329,7 @@ impl Lexer {
 
                 return Ok(Token {
                     kind: TokenKind::StringLiteral(string_literal),
+                    pointer_depth: 1,
                     line: start_line,
                     column: start_column
                 })
@@ -333,6 +345,15 @@ impl Lexer {
                     if character.is_alphanumeric() || character == '_' {
                         token.push(character);
                         self.consume_char();
+                    } else if character == '*' {
+                        pointer_depth += 1;
+                        self.consume_char();
+
+                        while let Some('*') = self.peek_char(0) {
+                            pointer_depth += 1;
+                            self.consume_char();
+                        }
+                        break;
                     } else {
                         break;
                     }
@@ -352,6 +373,7 @@ impl Lexer {
 
                     "true" => TokenKind::TrueValue,
                     "false" => TokenKind::FalseValue,
+                    "null" => TokenKind::NullValue,
                     
                     "var" => TokenKind::Var,
                     "if" => TokenKind::If,
@@ -362,15 +384,15 @@ impl Lexer {
                     _ => TokenKind::Identifier(token),
                 };
 
-                return Ok(Token { kind, line: start_line, column: start_column });
+                return Ok(Token { kind, pointer_depth, line: start_line, column: start_column });
             }
 
-            // --- handle operators / symbols ---
-            if let Some(token) = self.double_char_token() {
+            // Operators, symbols
+            if let Some(token) = self.double_char_token(pointer_depth) {
                 return Ok(token);
             }
 
-            if let Some(token) = self.single_char_token() {
+            if let Some(token) = self.single_char_token(pointer_depth) {
                 return Ok(token);
             }
 

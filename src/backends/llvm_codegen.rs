@@ -78,21 +78,16 @@ impl LLVMCodeGenerator {
         return Ok(());
     }
 
-    fn map_type_to_str(&self, type_: &Type) -> &'static str {
+    fn map_type_to_str(&self, type_: &Type) -> String {
         match type_ {
-            Type::Int64 => return "i64",
-            Type::Int32 => return "i32",
-            Type::Int1 => return "i1",
-            Type::Int8 => return "i8",
-            Type::Void => return "void",
-            Type::Pointer(type_) => {
-                match &**type_ {
-                    Type::Int8 => {
-                        return "i8*"
-                    },
-                    _ => todo!("Pointers of not int8 type is not supported yet")
-                }
-            },
+            Type::Int64 => return "i64".to_string(),
+            Type::Int32 => return "i32".to_string(),
+            Type::Int1 => return "i1".to_string(),
+            Type::Int8 => return "i8".to_string(),
+            Type::Void => return "void".to_string(),
+            Type::Pointer(inner) => {
+                format!("{}*", self.map_type_to_str(inner))
+            }
             _ => unreachable!("Other types should not be allowed in semantic analysis")
         }
     }
@@ -858,7 +853,7 @@ impl LLVMCodeGenerator {
             },
 
             Expression::BooleanLiteral { value, span } => {
-                let mut expression_type = "i1";
+                let mut expression_type: String = String::from("i1");
                 let expression_value = if *value { 1 } else { 0 };
 
                 if let Some(expected) = expected_type {
@@ -874,6 +869,22 @@ impl LLVMCodeGenerator {
                 self.ssa_counter += 1;
 
                 return Ok((code, ssa, Type::Int1));
+            },
+
+            Expression::NullLiteral { span } => {
+                let ssa_type = expected_type.expect("Null literals must always have an expected type passed");
+                
+                let ssa = format!("%{}", self.ssa_counter);
+                let code = format!(
+                    "{}{} = bitcast {} null to {}\n",
+                    self.indent(),
+                    ssa,
+                    self.map_type_to_str(ssa_type),
+                    self.map_type_to_str(ssa_type)
+                );
+                self.ssa_counter += 1;
+
+                return Ok((code, ssa, ssa_type.clone()));
             },
         }
     }
