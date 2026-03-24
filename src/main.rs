@@ -334,6 +334,13 @@ pub fn print_semantic_errors(diagnostics: &Diagnostics) {
                     "Semantic error at {}:{}, widening from {:?} to {:?} is not allowed",
                     span.line, span.column, from_type, to_type
                 )
+            },
+
+            SemanticError::InvalidUnaryOperation { operand_type, span } => {
+                eprintln!(
+                    "Semantic error at {}:{}, a unary operation on operand of type: {:?} is not allowed",
+                    span.line, span.column, operand_type
+                )
             }
         }
     }

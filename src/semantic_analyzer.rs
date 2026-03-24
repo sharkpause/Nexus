@@ -1,6 +1,6 @@
 use std::{collections::HashMap, env::var, slice::GetDisjointMutError, sync::LazyLock};
 
-use crate::parser::{ Expression, Function, Span, Statement, TopLevel, Type };
+use crate::parser::{ Expression, Function, Operator, Span, Statement, TopLevel, Type };
 
 #[derive(Debug)]
 pub enum SemanticError {
@@ -83,6 +83,10 @@ pub enum SemanticError {
     InvalidTypeWidening {
         from_type: Type,
         to_type: Type,
+        span: Span
+    },
+    InvalidUnaryOperation {
+        operand_type: Type,
         span: Span
     },
 
@@ -510,8 +514,6 @@ impl<'a> SemanticAnalyzer<'a> {
 
             Expression::UnaryOperation { operator, operand, span } => {
                 return self.infer_expression_type(operand);
-                // TODO: In the future check if the operand can logically be negated
-                // So -1 is legal and -"one" is not
             },
 
             Expression::BinaryOperation { left, operator, right, span } => {
@@ -687,8 +689,49 @@ impl<'a> SemanticAnalyzer<'a> {
                 return Err(());
             }
 
-            Expression::UnaryOperation { operator, operand, span } => {
-                return self.validate_expression(operand, generics);
+            Expression::UnaryOperation { operator, operand, span } => {                
+                self.validate_expression(operand, generics);
+
+                let operand_type =
+                    self.infer_expression_type(operand)
+                    .expect("Operand should already have a type by this point");
+                
+                match operator {
+                    Operator::Subtract => {
+                        if operand_type.is_integer() {
+                            return Ok(operand_type);
+                        }
+                        
+                        self.push_error(SemanticError::InvalidUnaryOperation {
+                            operand_type,
+                            span: *span
+                        });
+
+                        return Err(());
+                    },
+
+                    Operator::Not => {
+                        if operand_type.is_integer() {
+                            return Ok(operand_type);
+                        }
+
+                        self.push_error(SemanticError::InvalidUnaryOperation {
+                            operand_type,
+                            span: *span
+                        });
+
+                        return Err(());
+                    },
+
+                    _ => {
+                        self.push_error(SemanticError::InvalidUnaryOperation {
+                            operand_type,
+                            span: *span
+                        });
+
+                        return Err(());
+                    }
+                }
             },
 
             Expression::IntLiteral { value, span } => {
