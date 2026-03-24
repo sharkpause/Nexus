@@ -392,8 +392,6 @@ impl<'a> SemanticAnalyzer<'a> {
 
                 for generic_expression_pointer in generic_expressions {
                     let generic_expression = unsafe { &mut **generic_expression_pointer };
-
-                    println!("{:?}", self.cast_generic_to_default(generic_expression));
                 }
 
                 self.validate_statement(then_branch);
@@ -411,8 +409,6 @@ impl<'a> SemanticAnalyzer<'a> {
 
                 for generic_expression_pointer in generic_expressions {
                     let generic_expression = unsafe { &mut **generic_expression_pointer };
-
-                    println!("{:?}", self.cast_generic_to_default(generic_expression));
                 }
 
                 self.validate_statement(body);
@@ -585,7 +581,8 @@ impl<'a> SemanticAnalyzer<'a> {
             return Some(default);
         }
 
-        // TODO: numeric promotions here later
+        // TODO: numeric promotions here later, fuck you past Don why so vague
+        // the fuck you mean numeric promotions here later
 
         None
     }
@@ -984,7 +981,6 @@ impl<'a> SemanticAnalyzer<'a> {
             Expression::BooleanLiteral { value, span } => return Ok(Type::Int1),
 
             _ => {
-                println!("\n\n{:?}", expression);
                 unreachable!("cast_generic_to_default shouldn't be used here");
             }
         }

@@ -484,6 +484,7 @@ fn main() {
     write_file("out.ll".to_string(), &output);
     llvm_optimize_and_link("out.ll", "out");
 
+    // To be reactivated later as an alternative compilation path
     // write_file("out.asm".to_string(), &output);
     // assemble_and_link("out.asm", "out");
 }

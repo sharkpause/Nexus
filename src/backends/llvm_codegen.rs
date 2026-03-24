@@ -613,14 +613,12 @@ impl LLVMCodeGenerator {
                         ssa = format!("%{}", self.ssa_counter);
                         self.ssa_counter += 1;
                         
-                        let ssa_type = expected_type.expect("Semantic analysis should guarantee a type here");
-                        
                         code.push_str(&format!(
                             "{}{} = {} {} {}, {}\n",
                             self.indent(),
                             ssa,
                             op_str,
-                            self.map_type_to_str(ssa_type),
+                            self.map_type_to_str(&left_ssa_type),
                             left_ssa,
                             right_ssa
                         ));
