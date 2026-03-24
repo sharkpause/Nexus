@@ -1,3 +1,5 @@
+extern function int32 puts(int8* s);
+
 function int32 entry() {
     puts("Hello, world!");
 
