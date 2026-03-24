@@ -399,6 +399,23 @@ impl<'a> SemanticAnalyzer<'a> {
                 }
             },
 
+            Statement::While { condition, body, span } => {
+                self.loop_depth += 1;
+
+                let mut generic_expressions: &mut Vec<*mut Expression> = &mut vec![];
+                self.validate_expression(condition, &mut Some(generic_expressions));
+
+                for generic_expression_pointer in generic_expressions {
+                    let generic_expression = unsafe { &mut **generic_expression_pointer };
+
+                    println!("{:?}", self.cast_generic_to_default(generic_expression));
+                }
+
+                self.validate_statement(body);
+            
+                self.loop_depth -= 1;
+            },
+
             Statement::VariableAssignment { name, value, span } => {
                 self.validate_expression(value, &mut None);
                 
@@ -465,22 +482,6 @@ impl<'a> SemanticAnalyzer<'a> {
                 }
             },
 
-            Statement::While { condition, body, span } => {
-                self.loop_depth += 1;
-
-                let mut generic_expressions: &mut Vec<*mut Expression> = &mut vec![];
-                self.validate_expression(condition, &mut Some(generic_expressions));
-
-                for generic_expression_pointer in generic_expressions {
-                    let generic_expression = unsafe { &mut **generic_expression_pointer };
-
-                    println!("{:?}", self.cast_generic_to_default(generic_expression));
-                }
-
-                self.validate_statement(body);
-            
-                self.loop_depth -= 1;
-            }
         }
     }
 
