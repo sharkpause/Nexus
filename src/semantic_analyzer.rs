@@ -1129,29 +1129,8 @@ impl<'a> SemanticAnalyzer<'a> {
             }
 
             Expression::BinaryOperation { left, right, span, .. } => {
-                // First widen children
                 self.widen_expression(left, target_type);
                 self.widen_expression(right, target_type);
-
-                // let left_type = match self.infer_expression_type(left) {
-                //     Some(t) => t,
-                //     None => return,
-                // };
-
-                // let right_type = match self.infer_expression_type(right) {
-                //     Some(t) => t,
-                //     None => return,
-                // };
-
-                // if !left_type.is_assignable_to(target_type)
-                //     || !right_type.is_assignable_to(target_type)
-                // {
-                //     self.push_error(SemanticError::InvalidTypeWidening {
-                //         from_type: left_type,
-                //         to_type: target_type.clone(),
-                //         span: *span,
-                //     });
-                // }
             }
 
             Expression::UnaryOperation { operand, .. } => {
@@ -1204,41 +1183,12 @@ impl<'a> SemanticAnalyzer<'a> {
             },
 
             Expression::StringLiteral { value, span } => {
-                // ye
+                // Nothing to widen here
             },
 
             Expression::BooleanLiteral { value, span } => {
-                // ye
+                // Nothing to widen here
             }
         }
     }
-
-    // fn resolve_binary_type(
-    //     &mut self,
-    //     left: Type,
-    //     right: Type,
-    //     span: Span,
-    // ) -> Result<Type, ()> {
-    //     match (left, right) {
-    //         // Same concrete types
-    //         (a, b) if a.same_kind(&b) => Ok(a),
-
-    //         // Generic int + concrete int → concrete
-    //         (Type::GenericInt, t) if t.is_integer() => Ok(t),
-    //         (t, Type::GenericInt) if t.is_integer() => Ok(t),
-
-    //         // Widening
-    //         (Type::Int32, Type::Int64) | (Int64, Int32) => Ok(Int64),
-
-    //         // Everything else is invalid
-    //         (l, r) => {
-    //             self.push_error(SemanticError::MismatchedBinaryOperationType {
-    //                 left_type: l,
-    //                 right_type: r,
-    //                 span,
-    //             });
-    //             Err(())
-    //         },
-    //     }
-    // }
 }
