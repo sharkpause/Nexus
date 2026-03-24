@@ -267,11 +267,11 @@ impl<'a> SemanticAnalyzer<'a> {
     }
 
     fn validate_tree(&mut self) {
-        let mut program = std::mem::take(&mut self.program_tree);
-        // this is needed because this it needs to iterate through self.program_tree, so
+        let program = std::mem::take(&mut self.program_tree);
+        // this is needed because it needs to iterate through self.program_tree, so
         // two errors can occur: A multiple mutable borrow and a mutable borrow after an immutable borrow
         // this fixes that error because self.program_tree now is moved, no need for a borrow.
-        // fuck you borrow checker.
+        // fuck you borrow checker, but thank you
 
         for toplevel in program.iter_mut() {
             if let TopLevel::Function(function) = toplevel {
@@ -319,6 +319,8 @@ impl<'a> SemanticAnalyzer<'a> {
                 // still treats the expressions as still being borrowed even though no additional operations
                 // are being done on the expressions after validate_expression. So a raw pointer is needed
                 // to bypass the borrow checker and mutate the expressions.
+
+                // On second thought we definitely could've just stored a Box<Expression> instead of a raw pointer
                 let mut generics: Vec<*mut Expression> = Vec::new();
 
                 let mut provided_type = if let Some(expression) = value {
@@ -590,6 +592,9 @@ impl<'a> SemanticAnalyzer<'a> {
     fn validate_expression(
         &mut self,
         expression: & mut Expression,
+
+        // Several bad design decisions has led up to this monstrosity of a parameter definition
+        // Coulda definitely been Option<&mut Vec<Box<Expression>>> instead but shit we're here already
         generics: &mut Option<& mut Vec<*mut Expression>>
     ) -> Result<Type, ()> {
         match expression {
@@ -762,6 +767,10 @@ impl<'a> SemanticAnalyzer<'a> {
     }
 
     fn validate_argument(&mut self, provided_argument: &mut Expression, expected_argument: &(Type, String)) -> Result<(), ()> {
+        // This looks very similar to validate_expression but is needed separately
+        // because when passing an argument you have to pass in the same type as well,
+        // validate_expression doesn't assume any types by default.
+
         match provided_argument {
             Expression::IntLiteral { value, span } => {
                 if !expected_argument.0.is_assignable_to(&Type::GenericInt) {
@@ -894,6 +903,9 @@ impl<'a> SemanticAnalyzer<'a> {
     }
 
     fn cast_generic_to_default(&mut self, expression: &mut Expression) -> Result<Type, ()> {
+        // Forgot what this was for, figure it out later
+        // Guess 1: Maybe to simpliy cast_generics_to_default by providing a helper function
+
         match expression {
             Expression::IntLiteral { value, span } => {
                 if *value >= i8::MIN as i128 && *value <= i8::MAX as i128 {
