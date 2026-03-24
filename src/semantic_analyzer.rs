@@ -1018,7 +1018,6 @@ impl<'a> SemanticAnalyzer<'a> {
                         return Ok(Type::Int64);
                     },
                     _ => {
-                        // Type mismatch, push an error if needed
                         self.push_error(SemanticError::InvalidTypeWidening {
                             from_type: Type::GenericInt,
                             to_type: target_type.clone(),
