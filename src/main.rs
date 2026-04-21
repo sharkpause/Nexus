@@ -1,16 +1,25 @@
-mod token;
+mod lexing;
 mod lexer;
 mod parser;
 mod backend;
 mod backends;
 mod semantic_analyzer;
+mod parsing;
+mod semantics;
+mod errors;
 
 use std::{env, fs, process::Command};
 
-use crate::semantic_analyzer::{ SemanticAnalyzer, SemanticError, Diagnostics };
-use crate::token::print_token;
-use crate::lexer::{ Lexer, LexerError };
-use crate::parser::{ Parser, TopLevel, Statement, Expression, ParserError };
+use crate::errors::{SemanticError, ParserError};
+use crate::parser::Parser;
+use crate::parsing::expression::Expression;
+use crate::parsing::statement::Statement;
+use crate::parsing::toplevel::TopLevel;
+use crate::semantic_analyzer::SemanticAnalyzer;
+use crate::semantics::diagnostics::Diagnostics;
+use crate::lexing::token::print_token;
+use crate::lexer::Lexer;
+// use crate::parsing::{ Parser, TopLevel, Statement, Expression, ParserError };
 use crate::backend::generate_program;
 // use crate::backends::asm_codegen::ASMCodeGenerator;
 use crate::backends::llvm_codegen::LLVMCodeGenerator;

@@ -1,4 +1,5 @@
-use crate::parser::{ TopLevel };
+use crate::parsing::toplevel::TopLevel;
+
 
 #[derive(Debug)]
 pub enum CodegenError {

@@ -1,6 +1,6 @@
 use std::num::IntErrorKind;
 
-use crate::token::{ Token, TokenKind };
+use crate::lexing::token::{Token, TokenKind};
 
 #[derive(Debug)]
 pub enum LexerError {

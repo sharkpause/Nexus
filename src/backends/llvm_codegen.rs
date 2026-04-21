@@ -1,8 +1,6 @@
 use std::{ collections::HashMap };
 
-use crate::parser::{Expression, Operator, Statement, TopLevel, Type};
-use crate::backend::Backend;
-use crate::backend::CodegenError;
+use crate::{backend::{Backend, CodegenError}, parsing::{expression::Expression, operator::Operator, statement::Statement, toplevel::TopLevel, types::Type}};
 
 struct FunctionContext {
     return_type: Type,

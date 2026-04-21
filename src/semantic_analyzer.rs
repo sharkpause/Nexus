@@ -1,138 +1,7 @@
-use std::{collections::HashMap, env::var, slice::GetDisjointMutError, sync::LazyLock};
+use std::collections::HashMap;
 
-use crate::parser::{ Expression, Function, Operator, Span, Statement, TopLevel, Type };
+use crate::{errors::SemanticError, parsing::{expression::Expression, function::Function, operator::Operator, span::Span, statement::Statement, toplevel::TopLevel, types::Type}, semantics::{diagnostics::Diagnostics, symbols::{FunctionSymbol, VariableSymbol}}};
 
-#[derive(Debug)]
-pub enum SemanticError {
-    MainIsReserved {
-        span: Span
-    },
-    DuplicateVariable {
-        name: String,
-        span: Span
-    },
-    DuplicateFunction {
-        name: String,
-        span: Span
-    },
-    DuplicateParameter { 
-        name: String,
-        span: Span
-    },
-    UndefinedVariable {
-        name: String,
-        span: Span
-    },
-    UndefinedFunction {
-        name: String,
-        span: Span
-    },
-    MismatchedArgumentCount {
-        called_function_name: String,
-        provided_argument_count: usize,
-        expected_argument_count: usize,
-        span: Span
-    },
-    BreakOutsideLoop {
-        span: Span
-    },
-    ContinueOutsideLoop {
-        span: Span
-    },
-    MismatchedReturnType {
-        expected_return_type: Type,
-        provided_return_type: Type,
-        span: Span
-    },
-    MismatchedVariableType {
-        name: String,
-        expected_type: Type,
-        provided_type: Type,
-        span: Span  
-    },
-    MismatchedBinaryOperationType {
-        left_type: Type,
-        right_type: Type,
-        span: Span
-    },
-    MissingReturnType {
-        expected: Type,
-        span: Span
-    },
-    InvalidType {
-        var_name: String,
-        var_type: Type,
-        span: Span
-    },
-    InvalidEntryReturnType {
-        span: Span
-    },
-    IntegerOverflow {
-        span: Span
-    },
-    MismatchedArgumentType {
-        expected_type: Type,
-        provided_type: Type,
-        span: Span
-    },
-    MismatchedAssignmentType {
-        expected_type: Type,
-        provided_type: Type,
-        span: Span
-    },
-    InvalidTypeWidening {
-        from_type: Type,
-        to_type: Type,
-        span: Span
-    },
-    InvalidUnaryOperation {
-        operand_type: Type,
-        span: Span
-    },
-
-    // ------- Fatal errors ---------
-    
-    NoEntryFunction,
-    InvalidTopLevelStatement {
-        span: Span
-    },
-}
-
-impl SemanticError {
-    pub fn is_fatal(&self) -> bool {
-        matches!(
-            self,
-            SemanticError::NoEntryFunction
-            | SemanticError::InvalidTopLevelStatement { .. }
-        )
-    }
-}
-
-#[derive(Debug)]
-pub struct Diagnostics {
-    pub errors: Vec<SemanticError>
-}
-
-impl Diagnostics {
-    pub fn has_fatal(&self) -> bool {
-        return self.errors.iter().any(|error| error.is_fatal());
-    }
-
-    pub fn has_errors(&self) -> bool {
-        return self.errors.len() > 0;
-    }
-}
-
-struct FunctionSymbol {
-    parameters: Vec<(Type, String)>,
-    return_type: Type,
-    span: Span
-}
-
-struct VariableSymbol {
-    var_type: Type,
-    span: Span
-}
 
 pub struct SemanticAnalyzer<'a> {
     program_tree: &'a mut [TopLevel],
@@ -174,7 +43,7 @@ impl<'a> SemanticAnalyzer<'a> {
 
         self.validate_tree();
 
-        self.diagnostics
+        return self.diagnostics;
     }
 
     fn collect_toplevels(&mut self) {
@@ -192,6 +61,8 @@ impl<'a> SemanticAnalyzer<'a> {
                         if function.name == "main" {
                             errors.push(SemanticError::MainIsReserved { span: function.span });
                         } else if function.name == "entry" {
+                            // Rename entry to main because that's what the ABI expects, so
+                            // "main" is a restricted name and "entry" is reserved for the entry point of the program
                             function.name = "main".to_string();
                         }
 
@@ -204,6 +75,7 @@ impl<'a> SemanticAnalyzer<'a> {
                     }
                 },
 
+                // For now, only functions are allowed as top level statements
                 TopLevel::Statement(statement) => {
                     errors.push(SemanticError::InvalidTopLevelStatement {
                         span: statement.span(),
@@ -291,7 +163,7 @@ impl<'a> SemanticAnalyzer<'a> {
 
         self.enter_scope();
 
-        for (parameter_type, name) in &function.parameters {
+        for(parameter_type, name) in &function.parameters {
             self.add_variable(name.clone(), parameter_type.clone(), function.span);
         }
 
@@ -1232,3 +1104,4 @@ impl<'a> SemanticAnalyzer<'a> {
         }
     }
 }
+
