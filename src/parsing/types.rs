@@ -28,6 +28,13 @@ impl Type {
         );
     }
 
+    pub fn is_numeric(&self) -> bool {
+        matches!(
+            self,
+            Type::Int8 | Type::Int32 | Type::Int64 | Type::GenericInt
+        )
+    }
+
     pub fn is_assignable_to(&self, other: &Type) -> bool {
         match (self, other) {
             (Type::GenericInt, t) if t.is_integer() => true,
@@ -37,21 +44,21 @@ impl Type {
             (Type::Pointer(..), Type::Null) => true,
             (Type::Null, Type::Pointer(..)) => true,
 
-            (a, b) => a.same_kind(b)
+            (a, b) => a.same_kind(b),
         }
     }
 
     pub fn is_generic(&self) -> bool {
         match self {
             Type::GenericInt => true,
-            _ => false
+            _ => false,
         }
     }
 
     pub fn is_pointer(&self) -> bool {
         match self {
             Type::Pointer(..) => true,
-            _ => false
+            _ => false,
         }
     }
 

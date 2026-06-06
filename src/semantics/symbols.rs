@@ -6,7 +6,8 @@ pub struct FunctionSymbol {
     pub span: Span
 }
 
+#[derive(Debug)]
 pub struct VariableSymbol {
-    pub var_type: Type,
+    pub type_: Type,
     pub span: Span
 }

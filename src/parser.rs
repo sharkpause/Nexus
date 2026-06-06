@@ -1,4 +1,4 @@
-use crate::{errors::ParserError, lexing::token::{Token, TokenKind}, parsing::{expression::Expression, function::Function, operator::Operator, span::Span, statement::Statement, toplevel::TopLevel, types::Type}};
+use crate::{errors::ParserError, lexing::token::{Token, TokenKind}, parsing::{expression::{Expression, ExpressionKind}, function::Function, operator::Operator, span::Span, statement::Statement, toplevel::TopLevel, types::Type}};
 
 pub struct Parser {
     pub tokens: Vec<Token>,
@@ -96,7 +96,7 @@ impl Parser {
 
     fn binding_power(&self, token: &Token) -> Option<u8> {
         /*
-        lowest
+        highest
         -------
         
         ! (not)
@@ -112,33 +112,33 @@ impl Parser {
         ||
         
         -------
-        highest
+        lowest
         */
 
         return match &token.kind {
-            TokenKind::Not => Some(10),
+            TokenKind::Not => Some(100),
 
             TokenKind::Star
             | TokenKind::Slash
-            | TokenKind::Percentage => Some(20),
+            | TokenKind::Percentage => Some(90),
 
-            TokenKind::Plus | TokenKind::Minus => Some(30),
+            TokenKind::Plus | TokenKind::Minus => Some(80),
 
-            TokenKind::ShiftLeft | TokenKind::ShiftRight => Some(40),
+            TokenKind::ShiftLeft | TokenKind::ShiftRight => Some(70),
 
             TokenKind::LessThan
             | TokenKind::LessEqual
             | TokenKind::GreaterThan
-            | TokenKind::GreaterEqual => Some(50),
+            | TokenKind::GreaterEqual => Some(60),
 
-            TokenKind::DoubleEqual | TokenKind::NotEqual => Some(60),
+            TokenKind::DoubleEqual | TokenKind::NotEqual => Some(50),
 
-            TokenKind::Ampersand => Some(70),
-            TokenKind::Caret => Some(80),
-            TokenKind::Pipe => Some(90),
+            TokenKind::Ampersand => Some(40),
+            TokenKind::Caret => Some(30),
+            TokenKind::Pipe => Some(20),
 
-            TokenKind::And => Some(100),
-            TokenKind::Or => Some(110),
+            TokenKind::And => Some(10),
+            TokenKind::Or => Some(0),
 
             _ => None
         };
@@ -324,7 +324,7 @@ impl Parser {
                 
                 self.expect_token(&TokenKind::Semicolon)?;
                 
-                return Ok(Statement::VariableDeclare {
+                return Ok(Statement::VariableInitialize {
                     var_type: variable_type,
                     name: variable_name,
                     initializer,
@@ -451,13 +451,13 @@ impl Parser {
             column: current_token.column
         };
 
-        let mut lhs = match &current_token.kind {
+        let lhs_kind = match &current_token.kind {
             TokenKind::Identifier(name) => {
                 let name = name.clone();
                 self.consume_token();
                     
                 if !self.peek_token(0).map_or(false, |token| token.same_kind(&TokenKind::LeftParentheses)) {
-                    Expression::Variable { name, span, type_: None }
+                    ExpressionKind::Variable { name, span, type_: None }
                 } else {
                     self.consume_token(); // consume '('
                     let mut arguments = Vec::new();
@@ -474,8 +474,12 @@ impl Parser {
                 
                     self.expect_token(&TokenKind::RightParentheses)?;
                 
-                    Expression::FunctionCall {
-                        called: Box::new(Expression::Variable { name, span, type_: None }),
+                    ExpressionKind::FunctionCall {
+                        called: Box::new(
+                            Expression {
+                                kind: ExpressionKind::Variable { name, span, type_: None },
+                                type_: None
+                            }),
                         arguments,
                         span
                     }
@@ -486,7 +490,7 @@ impl Parser {
                 let value = *number;
                 self.consume_token();
                 
-                Expression::IntLiteral { value, span }
+                ExpressionKind::IntLiteral { value, span }
             },
 
             TokenKind::LeftParentheses => {
@@ -494,14 +498,14 @@ impl Parser {
                 let parsed_expression = self.parse_expression(0)?;
                 self.expect_token(&TokenKind::RightParentheses)?;
                 
-                parsed_expression
+                parsed_expression.kind
             },
 
             TokenKind::Minus => {
                 self.consume_token();
                 let expression = self.parse_expression(6)?;
                 
-                Expression::UnaryOperation {
+                ExpressionKind::UnaryOperation {
                     operator: Operator::Subtract,
                     operand: Box::new(expression),
                     span
@@ -512,7 +516,7 @@ impl Parser {
                 self.consume_token();
                 let expression = self.parse_expression(8)?;
                 
-                Expression::UnaryOperation {
+                ExpressionKind::UnaryOperation {
                     operator: Operator::Not,
                     operand: Box::new(expression),
                     span
@@ -524,7 +528,7 @@ impl Parser {
 
                 self.consume_token();
                 
-                Expression::StringLiteral {
+                ExpressionKind::StringLiteral {
                     value: expression_value,
                     span
                 }
@@ -533,23 +537,25 @@ impl Parser {
             TokenKind::TrueValue => {
                 self.consume_token();
 
-                Expression::BooleanLiteral { value: true, span }
+                ExpressionKind::BooleanLiteral { value: true, span }
             },
 
             TokenKind::FalseValue => {
                 self.consume_token();
 
-                Expression::BooleanLiteral { value: false, span }
+                ExpressionKind::BooleanLiteral { value: false, span }
             },
 
             TokenKind::NullValue => {
                 self.consume_token();
 
-                Expression::NullLiteral { span }
+                ExpressionKind::NullLiteral { span }
             },
 
             _ => return Err(ParserError::UnexpectedToken(current_token.clone())),
         };
+
+        let mut lhs = Expression { kind: lhs_kind, type_: None };
 
         loop {
             let operator_token = self
@@ -558,6 +564,7 @@ impl Parser {
                 .ok_or(ParserError::UnexpectedEndOfInput)?;
 
             let bp = self.binding_power(&operator_token);
+            println!("\n\n{:?} {:?}\n\n", operator_token, bp);
 
             match bp {
                 Some(bp) if bp >= min_bp => {
@@ -569,11 +576,16 @@ impl Parser {
                         .token_to_operator(&operator_token)
                         .ok_or(ParserError::UnexpectedToken(operator_token))?;
 
-                    lhs = Expression::BinaryOperation {
-                        left: Box::new(lhs),
-                        operator,
-                        right: Box::new(rhs),
-                        span
+                    lhs = Expression {
+                            kind: ExpressionKind::BinaryOperation {
+                                left: Box::new(
+                                    Expression { kind: lhs.kind, type_: None }
+                                ),
+                                operator,
+                                right: Box::new(rhs),
+                                span
+                            },
+                            type_: None
                     };
                 }
                 _ => break,

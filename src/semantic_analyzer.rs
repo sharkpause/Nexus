@@ -1,7 +1,23 @@
 use std::collections::HashMap;
 
-use crate::{errors::SemanticError, parsing::{expression::Expression, function::Function, operator::Operator, span::Span, statement::Statement, toplevel::TopLevel, types::Type}, semantics::{diagnostics::Diagnostics, symbols::{FunctionSymbol, VariableSymbol}}};
-
+use crate::{
+    errors::SemanticError,
+    parsing::{
+        expression::Expression,
+        function::Function,
+        operator::Operator,
+        span::Span,
+        statement::Statement,
+        toplevel::TopLevel,
+        types::Type
+    },
+    semantics::{
+        diagnostics::Diagnostics,
+        symbols::{
+            FunctionSymbol, VariableSymbol
+        }
+    }
+};
 
 pub struct SemanticAnalyzer<'a> {
     program_tree: &'a mut [TopLevel],
@@ -10,7 +26,6 @@ pub struct SemanticAnalyzer<'a> {
     diagnostics: Diagnostics,
     loop_depth: usize,
     current_return_type: Type,
-    generics: Vec<Type>
 }
 
 impl<'a> SemanticAnalyzer<'a> {
@@ -22,7 +37,6 @@ impl<'a> SemanticAnalyzer<'a> {
             diagnostics: Diagnostics { errors: Vec::new() },
             loop_depth: 0,
             current_return_type: Type::Int64,
-            generics: Vec::new()
         };
     }
 
@@ -103,7 +117,7 @@ impl<'a> SemanticAnalyzer<'a> {
         if scope.contains_key(&name) {
             self.push_error(SemanticError::DuplicateVariable { name, span });
         } else {
-            scope.insert(name, VariableSymbol { var_type: type_, span });
+            scope.insert(name, VariableSymbol { type_, span });
         }
     }
 
@@ -307,7 +321,7 @@ impl<'a> SemanticAnalyzer<'a> {
                             return;
                         };
                             
-                    if var_symbol.var_type.is_void() {
+                    if var_symbol.type_.is_void() {
                         self.push_error(SemanticError::InvalidType {
                             var_name: name.clone(),
                             var_type: Type::Void,
@@ -315,10 +329,10 @@ impl<'a> SemanticAnalyzer<'a> {
                         });
 
                         return;
-                    } else if !var_symbol.var_type.is_assignable_to(&value_type) {
+                    } else if !var_symbol.type_.is_assignable_to(&value_type) {
                         self.push_error(SemanticError::MismatchedVariableType {
                             name: name.clone(),
-                            expected_type: var_symbol.var_type.clone(),
+                            expected_type: var_symbol.type_.clone(),
                             provided_type: value_type,
                             span: *span,
                         });
@@ -326,7 +340,7 @@ impl<'a> SemanticAnalyzer<'a> {
                         return;
                     }
 
-                    var_symbol_type = var_symbol.var_type.clone();
+                    var_symbol_type = var_symbol.type_.clone();
                 }
 
                 self.cast_generic_to_target(value, &var_symbol_type);
@@ -379,7 +393,7 @@ impl<'a> SemanticAnalyzer<'a> {
             },
 
             Expression::Variable { name, type_, span } => {
-                return Some(self.lookup_variable(name)?.var_type.clone());
+                return Some(self.lookup_variable(name)?.type_.clone());
             },
 
             Expression::UnaryOperation { operator, operand, span } => {
@@ -496,7 +510,7 @@ impl<'a> SemanticAnalyzer<'a> {
                 let var_type =
                     self.lookup_variable(name)
                         .expect("Variable is guaranteed to exist")
-                        .var_type
+                        .type_
                         .clone();
 
                 *type_ = Some(var_type);

@@ -1,9 +1,9 @@
 mod lexing;
 mod lexer;
 mod parser;
-mod backend;
-mod backends;
-mod semantic_analyzer;
+// mod backend;
+// mod backends;
+mod semantic_analyzerv2;
 mod parsing;
 mod semantics;
 mod errors;
@@ -12,17 +12,17 @@ use std::{env, fs, process::Command};
 
 use crate::errors::{SemanticError, ParserError};
 use crate::parser::Parser;
-use crate::parsing::expression::Expression;
+use crate::parsing::expression::{Expression, ExpressionKind};
 use crate::parsing::statement::Statement;
 use crate::parsing::toplevel::TopLevel;
-use crate::semantic_analyzer::SemanticAnalyzer;
+use crate::semantic_analyzerv2::SemanticAnalyzer;
 use crate::semantics::diagnostics::Diagnostics;
 use crate::lexing::token::print_token;
 use crate::lexer::Lexer;
 // use crate::parsing::{ Parser, TopLevel, Statement, Expression, ParserError };
-use crate::backend::generate_program;
+// use crate::backend::generate_program;
 // use crate::backends::asm_codegen::ASMCodeGenerator;
-use crate::backends::llvm_codegen::LLVMCodeGenerator;
+// use crate::backends::llvm_codegen::LLVMCodeGenerator;
 
 fn read_file(path: &String) -> String {
     let source_code =
@@ -70,13 +70,13 @@ fn print_statement(stmt: &Statement, indent: usize) {
             }
         }
 
-        Statement::VariableDeclare {
+        Statement::VariableInitialize {
             var_type,
             name,
             initializer,
             span
         } => {
-            println!("{}Declare {:?} {}", padding, var_type, name);
+            println!("{}Initialize {:?} {}", padding, var_type, name);
             print_expression(initializer, indent + 1);
         }
 
@@ -135,61 +135,51 @@ fn print_statement(stmt: &Statement, indent: usize) {
 fn print_expression(expr: &Expression, indent: usize) {
     let padding = "  ".repeat(indent);
 
-    match expr {
-        Expression::Variable { name, type_, span } => {
-            println!("{}Variable {} of type {:?}", padding, name, type_);
+    print!("{} {:?} ", padding, expr.type_);
+
+    match &expr.kind {
+        ExpressionKind::Variable { name, type_, span } => {
+            println!("Variable {} of type {:?}", name, type_);
         }
 
-        Expression::IntLiteral { value, span } => {
-            println!("{}Int {}", padding, value);
+        ExpressionKind::IntLiteral { value, span } => {
+            println!("Int {}", value);
         },
 
-        Expression::UnaryOperation { operator, operand, span } => {
-            println!("{}Unary {:?}", padding, operator);
-            print_expression(operand, indent + 1);
+        ExpressionKind::UnaryOperation { operator, operand, span } => {
+            println!("Unary {:?}", operator);
+            print_expression(&operand, indent + 1);
         }
 
-        Expression::BinaryOperation {
+        ExpressionKind::BinaryOperation {
             left,
             operator,
             right,
             span
         } => {
-            println!("{}Binary {:?}", padding, operator);
-            print_expression(left, indent + 1);
-            print_expression(right, indent + 1);
+            println!("Binary {:?}", operator);
+            print_expression(&left, indent + 1);
+            print_expression(&right, indent + 1);
         }
 
-        Expression::FunctionCall { called: callee, arguments, span } => {
-            println!("{}Call:", padding);
-            print_expression(callee, indent + 1);
+        ExpressionKind::FunctionCall { called: callee, arguments, span } => {
+            println!("Call:");
+            print_expression(&callee, indent + 1);
             for arg in arguments {
-                print_expression(arg, indent + 1);
+                print_expression(&arg, indent + 1);
             }
         },
 
-        Expression::IntLiteral8 { value, span } => {
-            println!("{} Int8 {}", padding, value);
+        ExpressionKind::StringLiteral { value, span } => {
+            println!("String literal: \"{}\"", value);
         },
 
-        Expression::IntLiteral32 { value, span } => {
-            println!("{} Int32 {}", padding, value);
+        ExpressionKind::BooleanLiteral { value, span } => {
+            println!("Boolean literal: {}", value);
         },
 
-        Expression::IntLiteral64 { value, span } => {
-            println!("{} Int64 {}", padding, value);
-        },
-
-        Expression::StringLiteral { value, span } => {
-            println!("{} String literal: \"{}\"", padding, value);
-        },
-
-        Expression::BooleanLiteral { value, span } => {
-            println!("{} Boolean literal: {}", padding, value);
-        },
-
-        Expression::NullLiteral { span } => {
-            println!("{} Null literal", padding);
+        ExpressionKind::NullLiteral { span } => {
+            println!("Null literal");
         }
     }
 }
@@ -462,13 +452,13 @@ fn main() {
         }
     }
 
-    let mut semantic_analyzer = SemanticAnalyzer::from(&mut program_tree);
-    let diagnostics = semantic_analyzer.analyze();
-
-    if diagnostics.has_errors() {
-        print_semantic_errors(&diagnostics);
-        return;
-    }
+    let mut semantic_analyzer = SemanticAnalyzer::from(program_tree);
+    let program_tree = semantic_analyzer.analyze();
+    
+    // if diagnostics.has_errors() {
+    //     print_semantic_errors(&diagnostics);
+    //     return;
+    // }
 
     println!("\nAST After semantic analysis:");
     for toplevel in &program_tree {
@@ -483,19 +473,21 @@ fn main() {
         }
     }
 
-    let mut codegen_backend = LLVMCodeGenerator::default();
-    let output = match generate_program(program_tree, &mut codegen_backend) {
-        Ok(out) => out,
-        Err(e) => {
-            eprintln!("Codegen error: {:?}", e);
-            return;
-        }
-    };
+    print_semantic_errors(&semantic_analyzer.context.diagnostics);
 
-    println!("{}", output);
+    // let mut codegen_backend = LLVMCodeGenerator::default();
+    // let output = match generate_program(program_tree, &mut codegen_backend) {
+    //     Ok(out) => out,
+    //     Err(e) => {
+    //         eprintln!("Codegen error: {:?}", e);
+    //         return;
+    //     }
+    // };
 
-    write_file("out.ll".to_string(), &output);
-    llvm_optimize_and_link("out.ll", "out");
+    // println!("{}", output);
+
+    // write_file("out.ll".to_string(), &output);
+    // llvm_optimize_and_link("out.ll", "out");
 
     // To be reactivated later as an alternative compilation path
     // write_file("out.asm".to_string(), &output);
