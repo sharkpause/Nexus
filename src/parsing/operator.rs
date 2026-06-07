@@ -25,7 +25,7 @@ pub enum Operator {
 
 impl Operator {
     pub fn validate(&self, left: Option<&Type>, right: &Type) -> bool {
-        match self {
+        return match self {
             Operator::Not => left.is_none() && right.same_kind(&Type::Int1),
 
             Operator::Add | Operator::Subtract | Operator::Multiply | Operator::Divide => {
@@ -39,6 +39,6 @@ impl Operator {
             _ => {
                 todo!()
             }
-        }
+        };
     }
 }
