@@ -327,7 +327,7 @@ pub fn print_semantic_errors(diagnostics: &Diagnostics) {
 
             SemanticError::MismatchedAssignmentType { expected_type, provided_type, span } => {
                 eprintln!(
-                    "Semantic error at {}:{}, provided argument type of {:?} did not match expected type of {:?}",
+                    "Semantic error at {}:{}, provided assignment type of {:?} did not match expected type of {:?}",
                     span.line, span.column, provided_type, expected_type
                 )
             },

@@ -11,8 +11,12 @@ use crate::{
 };
 
 pub struct SemanticContext {
-    pub symbol_table: Vec<HashMap<String, VariableSymbol>>,
-    pub function_names: HashMap<String, FunctionSymbol>,
+    pub variable_table: Vec<HashMap<String, VariableSymbol>>,
+
+    // TODO:
+    // When methods/impl blocks are added,
+    // separate global functions and type methods.
+    pub function_table: HashMap<String, FunctionSymbol>,
     pub diagnostics: Diagnostics,
     pub loop_depth: usize,
     pub current_return_type: Type,
@@ -21,8 +25,8 @@ pub struct SemanticContext {
 impl SemanticContext {
     pub fn new() -> Self {
         return Self {
-            function_names: HashMap::new(),
-            symbol_table: Vec::new(),
+            function_table: HashMap::new(),
+            variable_table: Vec::new(),
             diagnostics: Diagnostics { errors: Vec::new() },
             loop_depth: 0,
             current_return_type: Type::Int64,
@@ -30,7 +34,7 @@ impl SemanticContext {
     }
 
     pub fn lookup_variable(&self, name: &str) -> Option<&VariableSymbol> {
-        for scope in self.symbol_table.iter().rev() {
+        for scope in self.variable_table.iter().rev() {
             if let Some(var) = scope.get(name) {
                 return Some(var);
             }
@@ -39,7 +43,10 @@ impl SemanticContext {
     }
 
     pub fn lookup_variable_in_current_scope(&self, name: &str) -> Option<&VariableSymbol> {
-        let v = self.symbol_table.last().and_then(|scope| scope.get(name));
+        let v = self
+            .variable_table
+            .last()
+            .and_then(|scope| scope.get(name));
         println!("{:?}", v.clone());
         return v;
     }
@@ -79,15 +86,26 @@ impl SemanticContext {
     }
 
     pub fn enter_scope(&mut self) {
-        self.symbol_table.push(HashMap::new());
+        self.variable_table.push(HashMap::new());
     }
 
     pub fn exit_scope(&mut self) {
-        self.symbol_table.pop();
+        self.variable_table.pop();
     }
 
     pub fn insert_variable(&mut self, name: String, symbol: VariableSymbol) {
-        self.symbol_table.last_mut().unwrap().insert(name, symbol);
+        self.variable_table
+            .last_mut()
+            .unwrap()
+            .insert(name, symbol);
+    }
+
+    pub fn insert_function(&mut self, name: String, symbol: FunctionSymbol) {
+        self.function_table.insert(name, symbol);
+    }
+
+    pub fn lookup_function(&self, name: &str) -> Option<&FunctionSymbol> {
+        return self.function_table.get(name);
     }
 
     pub fn push_error(&mut self, error: SemanticError) {

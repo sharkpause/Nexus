@@ -113,6 +113,9 @@ impl Statement {
                 initializer.validate(context);
 
                 let inferred_type = initializer.infer_type(context);
+                if inferred_type.is_invalid() {
+                    return;
+                }
 
                 if !inferred_type.is_assignable_to(var_type) {
                     context.push_error(SemanticError::MismatchedAssignmentType {
@@ -137,16 +140,27 @@ impl Statement {
                     return_expression.validate(context);
 
                     let inferred_type = return_expression.infer_type(context);
+                    if inferred_type.is_invalid() {
+                        return;
+                    }
 
                     if !inferred_type.is_assignable_to(&context.current_return_type) {
-                        context.push_error(SemanticError::MismatchedReturnType {
+                        return context.push_error(SemanticError::MismatchedReturnType {
                             expected_return_type: context.current_return_type.clone(),
                             provided_return_type: inferred_type,
                             span: *span,
                         });
                     }
 
-                    return_expression.coerce_to(context.current_return_type.clone());
+                    return return_expression.coerce_to(context.current_return_type.clone());
+                }
+
+                if !context.current_return_type.same_kind(&Type::Void) {
+                    return context.push_error(SemanticError::MismatchedReturnType {
+                        expected_return_type: context.current_return_type.clone(),
+                        provided_return_type: Type::Void,
+                        span: *span,
+                    });
                 }
             }
 

@@ -39,6 +39,10 @@ impl SemanticAnalyzer {
                     );
 
                     return;
+                } else if function.name == "entry" && !function.return_type .same_kind(&Type::Int32) {
+                    self.context.push_error(
+                        SemanticError::InvalidEntryReturnType { span: function.span }
+                    );
                 }
                 
                 let symbol = FunctionSymbol {
@@ -47,9 +51,7 @@ impl SemanticAnalyzer {
                     span: function.span
                 };
 
-                self.context.function_names.insert(
-                    function.name.clone(), symbol
-                );
+                self.context.insert_function(function.name.clone(), symbol);
             },
 
             TopLevel::Statement(..) => {

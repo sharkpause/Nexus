@@ -10,6 +10,11 @@ pub enum Type {
     Void,
     Null,
     Pointer(Box<Type>),
+
+    Invalid
+    // Not a real data type, a hack for the compiler to detect a non-critical error
+    // has occurred and it shouldn't print the error message again to avoid duplicate
+    // error messages.
 }
 
 impl Type {
@@ -29,14 +34,18 @@ impl Type {
     }
 
     pub fn is_numeric(&self) -> bool {
-        matches!(
+        return matches!(
             self,
             Type::Int8 | Type::Int32 | Type::Int64 | Type::GenericInt
-        )
+        );
+    }
+
+    pub fn is_bool(&self) -> bool {
+        return matches!(self, Type::Int1);
     }
 
     pub fn is_assignable_to(&self, other: &Type) -> bool {
-        match (self, other) {
+        return match (self, other) {
             (Type::GenericInt, t) if t.is_integer() => true,
             (t, Type::GenericInt) if t.is_integer() => true,
             (Type::Int32, Type::Int64) => true,
@@ -49,16 +58,23 @@ impl Type {
     }
 
     pub fn is_generic(&self) -> bool {
-        match self {
+        return match self {
             Type::GenericInt => true,
             _ => false,
         }
     }
 
     pub fn is_pointer(&self) -> bool {
-        match self {
+        return match self {
             Type::Pointer(..) => true,
             _ => false,
+        }
+    }
+
+    pub fn is_invalid(&self) -> bool {
+        return match self {
+            Type::Invalid => true,
+            _ => false
         }
     }
 

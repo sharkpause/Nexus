@@ -1,8 +1,9 @@
 use std::mem::discriminant;
 
+use crate::errors::SemanticError;
 use crate::parsing::operator::Operator;
 use crate::parsing::span::Span;
-use crate::parsing::types::Type;
+use crate::parsing::types::Type::{self, Invalid};
 use crate::semantics::semantic_context::SemanticContext;
 
 // #[derive(Debug, Clone)]
@@ -143,9 +144,9 @@ impl Expression {
 
             ExpressionKind::StringLiteral { .. } => Type::Pointer(Box::new(Type::Int8)),
 
-            ExpressionKind::Variable { name, .. } => {
-                context.lookup_variable_type(name.as_str()).unwrap()
-            }
+            ExpressionKind::Variable { name, .. } => context
+                .lookup_variable_type(name.as_str())
+                .unwrap_or(Type::Invalid),
 
             ExpressionKind::BinaryOperation {
                 left,
@@ -159,9 +160,20 @@ impl Expression {
                 context.unify_binary_types(&left_type, &right_type, operator)
             }
 
-            _ => {
-                unimplemented!("Later");
+            ExpressionKind::UnaryOperation {
+                operator,
+                operand,
+                span,
+            } => {
+                let operand_type = operand.infer_type(context);
+                operator.unary_result_type(&operand_type)
             }
+
+            ExpressionKind::FunctionCall {
+                called,
+                arguments,
+                span,
+            } => called.infer_type(context),
         };
 
         self.type_ = Some(inferred_type.clone());
@@ -190,6 +202,8 @@ impl Expression {
                         name: name.clone(),
                         span: *span,
                     });
+
+                    self.type_ = Some(Type::Invalid);
                 };
             }
 
@@ -197,7 +211,7 @@ impl Expression {
                 left,
                 operator,
                 right,
-                span
+                span,
             } => {
                 left.validate(context);
                 right.validate(context);
@@ -205,18 +219,119 @@ impl Expression {
                 let left_type = left.infer_type(context);
                 let right_type = right.infer_type(context);
 
+                if left_type.is_invalid() || right_type.is_invalid() {
+                    self.type_ = Some(Type::Invalid);
+                    return;
+                }
+
                 if !operator.validate(Some(&left_type), &right_type) {
-                    context.push_error(
-                        crate::errors::SemanticError::MismatchedBinaryOperationType {
-                            left_type,
-                            right_type,
-                            span: *span,
-                        },
-                    );
+                    context.push_error(SemanticError::MismatchedBinaryOperationType {
+                        left_type,
+                        right_type,
+                        span: *span,
+                    });
+
+                    self.type_ = Some(Type::Invalid);
                 }
             }
 
-            _ => {}
+            ExpressionKind::UnaryOperation {
+                operator,
+                operand,
+                span,
+            } => {
+                operand.validate(context);
+                let operand_type = operand.infer_type(context);
+
+                if operand_type.is_invalid() {
+                    self.type_ = Some(Type::Invalid);
+                    return;
+                }
+
+                if !operator.validate(None, &operand_type) {
+                    context.push_error(SemanticError::InvalidUnaryOperation {
+                        operand_type,
+                        span: *span,
+                    });
+                    self.type_ = Some(Type::Invalid);
+                }
+            }
+
+            ExpressionKind::FunctionCall {
+                called,
+                arguments,
+                span,
+            } => {
+                match &called.kind {
+                    ExpressionKind::Variable { name, type_, span } => {
+                        let Some(function) = context.lookup_function(name) else {
+                            context.push_error(SemanticError::UndefinedVariable {
+                                name: name.clone(),
+                                span: *span,
+                            });
+
+                            self.type_ = Some(Type::Invalid);
+                            return;
+                        };
+
+                        self.type_ = Some(function.return_type.clone());
+
+                        if arguments.len() != function.parameters.len() {
+                            return context.push_error(SemanticError::MismatchedArgumentCount {
+                                called_function_name: name.clone(),
+                                provided_argument_count: arguments.len(),
+                                expected_argument_count: function.parameters.len(),
+                                span: *span,
+                            });
+                        }
+
+                        for (argument, parameter) in
+                            arguments.iter_mut().zip(function.parameters.clone())
+                        {
+                            argument.validate(context);
+
+                            let argument_type = argument.infer_type(context);
+
+                            if argument_type.is_invalid() {
+                                self.type_ = Some(Type::Invalid);
+                                continue;
+                            }
+
+                            if !argument_type.is_assignable_to(&parameter.0) {
+                                context.push_error(SemanticError::MismatchedArgumentType {
+                                    expected_type: parameter.0,
+                                    provided_type: argument_type,
+                                    span: *span,
+                                });
+
+                                continue;
+                            }
+
+                            argument.coerce_to(parameter.0);
+                        }
+                    }
+
+                    _ => unreachable!(
+                        "called in function call expressions should always be a variable"
+                    ),
+                };
+            }
+
+            ExpressionKind::IntLiteral { value, span } => {
+                // accepts
+            }
+
+            ExpressionKind::BooleanLiteral { value, span } => {
+                // accepts
+            }
+
+            ExpressionKind::StringLiteral { value, span } => {
+                // accepts
+            }
+
+            ExpressionKind::NullLiteral { span } => {
+                // accepts
+            }
         }
     }
 }
