@@ -1,7 +1,5 @@
 use crate::{
-    errors::SemanticError,
-    parsing::{expression::Expression, span::Span, types::Type},
-    semantics::{semantic_context::SemanticContext, symbols::VariableSymbol},
+    errors::SemanticError, parsing::{expression::{Expression, ExpressionKind}, span::Span, types::Type}, semantics::{semantic_context::SemanticContext, symbols::VariableSymbol},
 };
 
 #[derive(Debug, Clone)]
@@ -71,17 +69,21 @@ impl Statement {
         }
     }
 
-    pub fn validate(&mut self, context: &mut SemanticContext) {
+    pub fn validate(&mut self, context: &mut SemanticContext, create_scope: bool) {
         match self {
-            Statement::Block { statements, span } => {
-                context.enter_scope();
-
-                for statement in statements {
-                    statement.validate(context);
+            Statement::Block { statements, span, } => {
+                if create_scope {
+                    context.enter_scope();
                 }
 
-                context.exit_scope();
-            }
+                for statement in statements {
+                    statement.validate(context, create_scope);
+                }
+
+                if create_scope {
+                    context.exit_scope();
+                }
+            },
 
             Statement::VariableInitialize {
                 var_type,
@@ -90,13 +92,6 @@ impl Statement {
                 span,
             } => {
                 let mut error_happened = false;
-                if context.lookup_variable_in_current_scope(name).is_some() {
-                    context.push_error(SemanticError::DuplicateVariable {
-                        name: name.clone(),
-                        span: *span,
-                    });
-                    error_happened = true;
-                }
                 if var_type.same_kind(&Type::Void) {
                     context.push_error(SemanticError::InvalidType {
                         var_name: name.clone(),
@@ -118,7 +113,7 @@ impl Statement {
                 }
 
                 if !inferred_type.is_assignable_to(var_type) {
-                    context.push_error(SemanticError::MismatchedAssignmentType {
+                    return context.push_error(SemanticError::MismatchedAssignmentType {
                         expected_type: var_type.clone(),
                         provided_type: inferred_type.clone(),
                         span: *span,
@@ -126,14 +121,65 @@ impl Statement {
                 }
 
                 initializer.coerce_to(var_type.clone());
-                context.insert_variable(
+                if context.insert_variable(
                     name.clone(),
                     VariableSymbol {
                         type_: var_type.clone(),
                         span: *span,
-                    },
-                );
-            }
+                    }).is_err() {
+                    context.push_error(SemanticError::DuplicateVariable {
+                        name: name.clone(),
+                        span: self.span()
+                    });
+                }
+            },
+
+            Statement::VariableAssignment {
+                name,
+                value,
+                span } => {
+                value.validate(context);
+                let inferred_type = value.infer_type(context);
+                if inferred_type.is_invalid() {
+                    return;
+                }
+                
+                let Some(variable) = context.lookup_variable(name) else {
+                    return context.push_error(SemanticError::UndefinedVariable {
+                        name: name.to_string(),
+                        span: *span
+                    });
+                };
+
+                if !inferred_type.is_assignable_to(&variable.type_) {
+                    return context.push_error(SemanticError::MismatchedAssignmentType {
+                        expected_type: variable.type_.clone(),
+                        provided_type: inferred_type,
+                        span: *span,
+                    });
+                }
+
+                value.coerce_to(variable.type_.clone());
+            },
+
+            Statement::Expression { expression, span } => {
+                expression.validate(context);
+                if expression.infer_type(context).is_invalid() {
+                    return;
+                }
+
+                 match expression.kind {
+                    ExpressionKind::FunctionCall { .. } => {}
+
+                    _ => {
+                        context.push_error(
+                            SemanticError::UselessExpression {
+                                span: *span,
+                            }
+                        );
+                    }
+                }
+            },
 
             Statement::Return { value, span } => {
                 if let Some(return_expression) = value {
@@ -162,10 +208,66 @@ impl Statement {
                         span: *span,
                     });
                 }
-            }
+            },
 
-            _ => {
-                todo!("a");
+            Statement::If {
+                condition,
+                then_branch,
+                else_branch,
+                span
+            } => {
+                condition.validate(context);
+                let condition_type = condition.infer_type(context);
+                if condition_type.is_invalid() {
+                    return;
+                }
+
+                if !condition_type.is_bool() {
+                    context.push_error(SemanticError::InvalidConditionType {
+                        provided_type: condition_type,
+                        span: *span
+                    });
+                }
+
+                then_branch.validate(context, create_scope);
+                if let Some(else_body) = else_branch {
+                    else_body.validate(context, create_scope);
+                }
+            },
+
+            Statement::While {
+                condition,
+                body,
+                span
+            } => {
+                condition.validate(context);
+                let condition_type = condition.infer_type(context);
+                if condition_type.is_invalid() {
+                    return;
+                }
+
+                if !condition_type.is_bool() {
+                    context.push_error(SemanticError::InvalidConditionType {
+                        provided_type: condition_type,
+                        span: *span
+                    });
+                }
+
+                context.enter_loop();
+                body.validate(context, create_scope);
+                context.exit_loop();
+            },
+
+            Statement::Break { span } => {
+                if context.loop_depth == 0 {
+                    context.push_error(SemanticError::BreakOutsideLoop { span:*span });
+                }
+            },
+
+            Statement::Continue { span } => {
+                if context.loop_depth == 0 {
+                    context.push_error(SemanticError::ContinueOutsideLoop { span: *span });
+                }
             }
         }
     }

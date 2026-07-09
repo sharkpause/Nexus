@@ -457,7 +457,7 @@ impl Parser {
                 self.consume_token();
                     
                 if !self.peek_token(0).map_or(false, |token| token.same_kind(&TokenKind::LeftParentheses)) {
-                    ExpressionKind::Variable { name, span, type_: None }
+                    ExpressionKind::Variable { name, type_: None }
                 } else {
                     self.consume_token(); // consume '('
                     let mut arguments = Vec::new();
@@ -477,11 +477,11 @@ impl Parser {
                     ExpressionKind::FunctionCall {
                         called: Box::new(
                             Expression {
-                                kind: ExpressionKind::Variable { name, span, type_: None },
-                                type_: None
+                                kind: ExpressionKind::Variable { name, type_: None },
+                                type_: None,
+                                span: span
                             }),
-                        arguments,
-                        span
+                        arguments
                     }
                 }
             },
@@ -490,7 +490,7 @@ impl Parser {
                 let value = *number;
                 self.consume_token();
                 
-                ExpressionKind::IntLiteral { value, span }
+                ExpressionKind::IntLiteral { value }
             },
 
             TokenKind::LeftParentheses => {
@@ -508,7 +508,6 @@ impl Parser {
                 ExpressionKind::UnaryOperation {
                     operator: Operator::Subtract,
                     operand: Box::new(expression),
-                    span
                 }
             },
 
@@ -519,7 +518,6 @@ impl Parser {
                 ExpressionKind::UnaryOperation {
                     operator: Operator::Not,
                     operand: Box::new(expression),
-                    span
                 }
             },
 
@@ -530,32 +528,31 @@ impl Parser {
                 
                 ExpressionKind::StringLiteral {
                     value: expression_value,
-                    span
                 }
             },
 
             TokenKind::TrueValue => {
                 self.consume_token();
 
-                ExpressionKind::BooleanLiteral { value: true, span }
+                ExpressionKind::BooleanLiteral { value: true }
             },
 
             TokenKind::FalseValue => {
                 self.consume_token();
 
-                ExpressionKind::BooleanLiteral { value: false, span }
+                ExpressionKind::BooleanLiteral { value: false }
             },
 
             TokenKind::NullValue => {
                 self.consume_token();
 
-                ExpressionKind::NullLiteral { span }
+                ExpressionKind::NullLiteral
             },
 
             _ => return Err(ParserError::UnexpectedToken(current_token.clone())),
         };
 
-        let mut lhs = Expression { kind: lhs_kind, type_: None };
+        let mut lhs = Expression { kind: lhs_kind, type_: None, span: span };
 
         loop {
             let operator_token = self
@@ -579,13 +576,13 @@ impl Parser {
                     lhs = Expression {
                             kind: ExpressionKind::BinaryOperation {
                                 left: Box::new(
-                                    Expression { kind: lhs.kind, type_: None }
+                                    Expression { kind: lhs.kind, type_: None, span }
                                 ),
                                 operator,
                                 right: Box::new(rhs),
-                                span
                             },
-                            type_: None
+                            type_: None,
+                            span
                     };
                 }
                 _ => break,

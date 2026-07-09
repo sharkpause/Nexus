@@ -138,47 +138,50 @@ fn print_expression(expr: &Expression, indent: usize) {
     print!("{} {:?} ", padding, expr.type_);
 
     match &expr.kind {
-        ExpressionKind::Variable { name, type_, span } => {
+        ExpressionKind::Variable { name, type_ } => {
             println!("Variable {} of type {:?}", name, type_);
         }
 
-        ExpressionKind::IntLiteral { value, span } => {
+        ExpressionKind::IntLiteral { value } => {
             println!("Int {}", value);
-        },
+        }
 
-        ExpressionKind::UnaryOperation { operator, operand, span } => {
+        ExpressionKind::UnaryOperation { operator, operand } => {
             println!("Unary {:?}", operator);
-            print_expression(&operand, indent + 1);
+            print_expression(operand, indent + 1);
         }
 
         ExpressionKind::BinaryOperation {
             left,
             operator,
             right,
-            span
         } => {
             println!("Binary {:?}", operator);
-            print_expression(&left, indent + 1);
-            print_expression(&right, indent + 1);
+            print_expression(left, indent + 1);
+            print_expression(right, indent + 1);
         }
 
-        ExpressionKind::FunctionCall { called: callee, arguments, span } => {
+        ExpressionKind::FunctionCall {
+            called,
+            arguments,
+        } => {
             println!("Call:");
-            print_expression(&callee, indent + 1);
-            for arg in arguments {
-                print_expression(&arg, indent + 1);
+            print_expression(called, indent + 1);
+
+            for argument in arguments {
+                print_expression(argument, indent + 1);
             }
-        },
+        }
 
-        ExpressionKind::StringLiteral { value, span } => {
+        ExpressionKind::StringLiteral { value } => {
             println!("String literal: \"{}\"", value);
-        },
+        }
 
-        ExpressionKind::BooleanLiteral { value, span } => {
+        ExpressionKind::BooleanLiteral { value } => {
             println!("Boolean literal: {}", value);
-        },
+        }
 
-        ExpressionKind::NullLiteral { span } => {
+        ExpressionKind::NullLiteral => {
             println!("Null literal");
         }
     }
@@ -283,10 +286,10 @@ pub fn print_semantic_errors(diagnostics: &Diagnostics) {
                 )
             },
 
-            SemanticError::MissingReturnType { expected, span } => {
+            SemanticError::MissingReturn { span } => {
                 eprintln!(
-                    "Semantic error at {}:{}, expected a return type of {:?}",
-                    span.line, span.column, *expected
+                    "Semantic error at {}:{}, all functions must end with an explicit return",
+                    span.line, span.column
                 )
             },
 
@@ -343,6 +346,20 @@ pub fn print_semantic_errors(diagnostics: &Diagnostics) {
                 eprintln!(
                     "Semantic error at {}:{}, a unary operation on operand of type: {:?} is not allowed",
                     span.line, span.column, operand_type
+                )
+            },
+
+            SemanticError::UselessExpression { span } => {
+                eprintln!(
+                    "Semantic error at {}:{}, useless expression, only function calls can stand alone as a statement",
+                    span.line, span.column
+                )
+            },
+
+            SemanticError::InvalidConditionType { provided_type, span } => {
+                eprintln!(
+                    "Semantic error at {}:{}, condiitons can only be boolean, provided type is {:?}",
+                    span.line, span.column, provided_type
                 )
             }
         }

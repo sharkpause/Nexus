@@ -55,8 +55,7 @@ pub enum SemanticError {
         right_type: Type,
         span: Span
     },
-    MissingReturnType {
-        expected: Type,
+    MissingReturn {
         span: Span
     },
     InvalidType {
@@ -85,8 +84,15 @@ pub enum SemanticError {
         to_type: Type,
         span: Span
     },
+    InvalidConditionType {
+        provided_type: Type,
+        span: Span
+    },
     InvalidUnaryOperation {
         operand_type: Type,
+        span: Span
+    },
+    UselessExpression {
         span: Span
     },
 

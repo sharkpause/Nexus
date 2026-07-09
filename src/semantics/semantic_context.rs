@@ -93,15 +93,33 @@ impl SemanticContext {
         self.variable_table.pop();
     }
 
-    pub fn insert_variable(&mut self, name: String, symbol: VariableSymbol) {
-        self.variable_table
-            .last_mut()
-            .unwrap()
-            .insert(name, symbol);
+    pub fn enter_loop(&mut self) {
+        self.loop_depth += 1;
     }
 
-    pub fn insert_function(&mut self, name: String, symbol: FunctionSymbol) {
-        self.function_table.insert(name, symbol);
+    pub fn exit_loop(&mut self) {
+        self.loop_depth -= 1;
+    }
+
+    pub fn insert_variable(&mut self, name: String, symbol: VariableSymbol) -> Result<(), ()> {
+        if self.lookup_variable_in_current_scope(&name).is_none() {
+            self.variable_table
+                .last_mut()
+                .unwrap()
+                .insert(name, symbol);
+            return Ok(());
+        } else {
+            return Err(());
+        }
+    }
+
+    pub fn insert_function(&mut self, name: String, symbol: FunctionSymbol) -> Result<(), ()> {
+        if self.lookup_function(&name).is_none() {
+            self.function_table.insert(name, symbol);
+            return Ok(());
+        } else {
+            return Err(());
+        }
     }
 
     pub fn lookup_function(&self, name: &str) -> Option<&FunctionSymbol> {

@@ -6,72 +6,11 @@ use crate::parsing::span::Span;
 use crate::parsing::types::Type::{self, Invalid};
 use crate::semantics::semantic_context::SemanticContext;
 
-// #[derive(Debug, Clone)]
-// pub enum Expression {
-//     Variable {
-//         name: String,
-//         type_: Option<Type>,
-//         span: Span,
-//     },
-
-//     IntLiteral {
-//         value: i128,
-//         span: Span,
-//     },
-
-//     IntLiteral8 {
-//         value: i8,
-//         span: Span,
-//     },
-
-//     IntLiteral32 {
-//         value: i32,
-//         span: Span
-//     },
-
-//     IntLiteral64 {
-//         value: i64,
-//         span: Span
-//     },
-
-//     BinaryOperation {
-//         left: Box<Expression>,
-//         operator: Operator,
-//         right: Box<Expression>,
-//         span: Span,
-//     },
-
-//     UnaryOperation {
-//         operator: Operator,
-//         operand: Box<Expression>,
-//         span: Span,
-//     },
-
-//     FunctionCall {
-//         called: Box<Expression>,
-//         arguments: Vec<Expression>,
-//         span: Span,
-//     },
-
-//     StringLiteral {
-//         value: String,
-//         span: Span
-//     },
-
-//     BooleanLiteral {
-//         value: bool,
-//         span: Span
-//     },
-
-//     NullLiteral {
-//         span: Span
-//     },
-// }
-
 #[derive(Debug, Clone)]
 pub struct Expression {
     pub kind: ExpressionKind,
-    pub type_: Option<Type>, // TODO: Move span from ExpressionKind to here
+    pub type_: Option<Type>,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone)]
@@ -79,46 +18,37 @@ pub enum ExpressionKind {
     Variable {
         name: String,
         type_: Option<Type>,
-        span: Span,
     },
 
     IntLiteral {
         value: i128,
-        span: Span,
     },
 
     BinaryOperation {
         left: Box<Expression>,
         operator: Operator,
         right: Box<Expression>,
-        span: Span,
     },
 
     UnaryOperation {
         operator: Operator,
         operand: Box<Expression>,
-        span: Span,
     },
 
     FunctionCall {
         called: Box<Expression>,
         arguments: Vec<Expression>,
-        span: Span,
     },
 
     StringLiteral {
         value: String,
-        span: Span,
     },
 
     BooleanLiteral {
         value: bool,
-        span: Span,
     },
 
-    NullLiteral {
-        span: Span,
-    },
+    NullLiteral
 }
 
 impl Expression {
@@ -152,7 +82,6 @@ impl Expression {
                 left,
                 operator,
                 right,
-                span,
             } => {
                 let left_type = left.infer_type(context);
                 let right_type = right.infer_type(context);
@@ -163,7 +92,6 @@ impl Expression {
             ExpressionKind::UnaryOperation {
                 operator,
                 operand,
-                span,
             } => {
                 let operand_type = operand.infer_type(context);
                 operator.unary_result_type(&operand_type)
@@ -171,8 +99,7 @@ impl Expression {
 
             ExpressionKind::FunctionCall {
                 called,
-                arguments,
-                span,
+                ..
             } => called.infer_type(context),
         };
 
@@ -196,11 +123,11 @@ impl Expression {
 
     pub fn validate(&mut self, context: &mut SemanticContext) {
         match &mut self.kind {
-            ExpressionKind::Variable { name, span, .. } => {
+            ExpressionKind::Variable { name, .. } => {
                 if context.lookup_variable(name).is_none() {
                     context.push_error(crate::errors::SemanticError::UndefinedVariable {
                         name: name.clone(),
-                        span: *span,
+                        span: self.span,
                     });
 
                     self.type_ = Some(Type::Invalid);
@@ -211,7 +138,6 @@ impl Expression {
                 left,
                 operator,
                 right,
-                span,
             } => {
                 left.validate(context);
                 right.validate(context);
@@ -228,7 +154,7 @@ impl Expression {
                     context.push_error(SemanticError::MismatchedBinaryOperationType {
                         left_type,
                         right_type,
-                        span: *span,
+                        span: self.span,
                     });
 
                     self.type_ = Some(Type::Invalid);
@@ -238,7 +164,6 @@ impl Expression {
             ExpressionKind::UnaryOperation {
                 operator,
                 operand,
-                span,
             } => {
                 operand.validate(context);
                 let operand_type = operand.infer_type(context);
@@ -251,7 +176,7 @@ impl Expression {
                 if !operator.validate(None, &operand_type) {
                     context.push_error(SemanticError::InvalidUnaryOperation {
                         operand_type,
-                        span: *span,
+                        span: self.span,
                     });
                     self.type_ = Some(Type::Invalid);
                 }
@@ -259,15 +184,32 @@ impl Expression {
 
             ExpressionKind::FunctionCall {
                 called,
-                arguments,
-                span,
+                arguments
             } => {
+                // TODO:
+                // Currently Nexus only supports direct function calls:
+                //     foo()
+                //
+                // Function pointers can be supported later by allowing
+                // `called` to be any expression whose type resolves to:
+                //
+                //     Pointer(Function {
+                //         parameters: Vec<Type>,
+                //         return_type: Type,
+                //     })
+                //
+                // This would enable C-style callbacks:
+                //     var callback = &foo;
+                //     callback();
+                //
+                // For now, only lookup named functions from function_table.
+
                 match &called.kind {
-                    ExpressionKind::Variable { name, type_, span } => {
+                    ExpressionKind::Variable { name, type_ } => {
                         let Some(function) = context.lookup_function(name) else {
                             context.push_error(SemanticError::UndefinedVariable {
                                 name: name.clone(),
-                                span: *span,
+                                span: self.span,
                             });
 
                             self.type_ = Some(Type::Invalid);
@@ -281,7 +223,7 @@ impl Expression {
                                 called_function_name: name.clone(),
                                 provided_argument_count: arguments.len(),
                                 expected_argument_count: function.parameters.len(),
-                                span: *span,
+                                span: self.span,
                             });
                         }
 
@@ -301,7 +243,7 @@ impl Expression {
                                 context.push_error(SemanticError::MismatchedArgumentType {
                                     expected_type: parameter.0,
                                     provided_type: argument_type,
-                                    span: *span,
+                                    span: self.span,
                                 });
 
                                 continue;
@@ -317,19 +259,19 @@ impl Expression {
                 };
             }
 
-            ExpressionKind::IntLiteral { value, span } => {
+            ExpressionKind::IntLiteral { value } => {
                 // accepts
             }
 
-            ExpressionKind::BooleanLiteral { value, span } => {
+            ExpressionKind::BooleanLiteral { value } => {
                 // accepts
             }
 
-            ExpressionKind::StringLiteral { value, span } => {
+            ExpressionKind::StringLiteral { value } => {
                 // accepts
             }
 
-            ExpressionKind::NullLiteral { span } => {
+            ExpressionKind::NullLiteral { .. } => {
                 // accepts
             }
         }

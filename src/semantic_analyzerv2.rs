@@ -23,6 +23,10 @@ impl SemanticAnalyzer {
             self.register_toplevel(toplevel);
         }
 
+        if self.context.lookup_function("entry").is_none() {
+            self.context.push_error(SemanticError::NoEntryFunction);
+        }
+
         for toplevel in &mut program_tree {
             self.analyze_toplevel(toplevel);
         }
@@ -51,7 +55,12 @@ impl SemanticAnalyzer {
                     span: function.span
                 };
 
-                self.context.insert_function(function.name.clone(), symbol);
+                if self.context.insert_function(function.name.clone(), symbol).is_err() {
+                    self.context.push_error(SemanticError::DuplicateFunction {
+                        name: function.name.clone(),
+                        span: function.span
+                    });
+                }
             },
 
             TopLevel::Statement(..) => {
@@ -85,14 +94,27 @@ impl SemanticAnalyzer {
                 span: function.span
             };
 
-            self.context.insert_variable(name.clone(), symbol);
+            if self.context.insert_variable(name.clone(), symbol).is_err() {
+                self.context.push_error(SemanticError::DuplicateParameter {
+                    name: name.clone(),
+                    span: function.span
+                });
+            }
         }
 
         if let Some(function_body) = &mut function.body {
-            function_body.validate(&mut self.context);
+            function_body.validate(&mut self.context, false);
         }
 
         self.context.exit_scope();
         self.context.current_return_type = previous_return_type;
     }
 }
+
+// TODO:
+// Implement control-flow analysis.
+// Non-void functions should guarantee all paths return.
+// Examples:
+//   if/else where both branches return -> valid
+//   infinite loops -> maybe valid
+//   missing branch return -> invalid
