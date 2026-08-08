@@ -17,7 +17,6 @@ pub struct Expression {
 pub enum ExpressionKind {
     Variable {
         name: String,
-        type_: Option<Type>,
     },
 
     IntLiteral {
@@ -48,7 +47,7 @@ pub enum ExpressionKind {
         value: bool,
     },
 
-    NullLiteral
+    NullLiteral,
 }
 
 impl Expression {
@@ -89,18 +88,19 @@ impl Expression {
                 context.unify_binary_types(&left_type, &right_type, operator)
             }
 
-            ExpressionKind::UnaryOperation {
-                operator,
-                operand,
-            } => {
+            ExpressionKind::UnaryOperation { operator, operand } => {
                 let operand_type = operand.infer_type(context);
                 operator.unary_result_type(&operand_type)
             }
 
-            ExpressionKind::FunctionCall {
-                called,
-                ..
-            } => called.infer_type(context),
+            ExpressionKind::FunctionCall { called, .. } => match &called.kind {
+                ExpressionKind::Variable { name, .. } => context
+                    .lookup_function(name)
+                    .map(|function| function.return_type.clone())
+                    .unwrap_or(Type::Invalid),
+
+                _ => Type::Invalid,
+            },
         };
 
         self.type_ = Some(inferred_type.clone());
@@ -161,10 +161,7 @@ impl Expression {
                 }
             }
 
-            ExpressionKind::UnaryOperation {
-                operator,
-                operand,
-            } => {
+            ExpressionKind::UnaryOperation { operator, operand } => {
                 operand.validate(context);
                 let operand_type = operand.infer_type(context);
 
@@ -182,10 +179,7 @@ impl Expression {
                 }
             }
 
-            ExpressionKind::FunctionCall {
-                called,
-                arguments
-            } => {
+            ExpressionKind::FunctionCall { called, arguments } => {
                 // TODO:
                 // Currently Nexus only supports direct function calls:
                 //     foo()
@@ -205,7 +199,7 @@ impl Expression {
                 // For now, only lookup named functions from function_table.
 
                 match &called.kind {
-                    ExpressionKind::Variable { name, type_ } => {
+                    ExpressionKind::Variable { name } => {
                         let Some(function) = context.lookup_function(name) else {
                             context.push_error(SemanticError::UndefinedVariable {
                                 name: name.clone(),

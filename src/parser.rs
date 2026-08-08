@@ -412,7 +412,7 @@ impl Parser {
             TokenKind::Identifier(_) => {
                 let name = if let TokenKind::Identifier(n) = &token.kind {
                     n.clone()
-                } else { unreachable!() };
+                } else { return unreachable!() };
 
                 // Evaluate an assignment
                 if let Some(next_token) = self.peek_token(1) {
@@ -457,7 +457,7 @@ impl Parser {
                 self.consume_token();
                     
                 if !self.peek_token(0).map_or(false, |token| token.same_kind(&TokenKind::LeftParentheses)) {
-                    ExpressionKind::Variable { name, type_: None }
+                    ExpressionKind::Variable { name }
                 } else {
                     self.consume_token(); // consume '('
                     let mut arguments = Vec::new();
@@ -477,7 +477,7 @@ impl Parser {
                     ExpressionKind::FunctionCall {
                         called: Box::new(
                             Expression {
-                                kind: ExpressionKind::Variable { name, type_: None },
+                                kind: ExpressionKind::Variable { name },
                                 type_: None,
                                 span: span
                             }),

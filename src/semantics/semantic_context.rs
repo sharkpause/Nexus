@@ -82,7 +82,7 @@ impl SemanticContext {
             return Type::Int32;
         }
 
-        panic!("invalid binary type unification: {:?} {:?}", left, right)
+        return panic!("invalid binary type unification: {:?} {:?}", left, right);
     }
 
     pub fn enter_scope(&mut self) {

@@ -102,7 +102,7 @@ impl Operator {
             },
 
             Operator::BitAnd | Operator::Multiply => {
-                unimplemented!("Pointers are not implemented yet");
+                return todo!("Pointers are not implemented yet")
             },
 
             _ => {

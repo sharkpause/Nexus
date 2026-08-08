@@ -106,11 +106,11 @@ pub enum SemanticError {
 
 impl SemanticError {
     pub fn is_fatal(&self) -> bool {
-        matches!(
+        return matches!(
             self,
             SemanticError::NoEntryFunction
             | SemanticError::InvalidTopLevelStatement { .. }
-        )
+        );
     }
 }
 

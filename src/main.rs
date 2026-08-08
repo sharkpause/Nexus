@@ -138,8 +138,8 @@ fn print_expression(expr: &Expression, indent: usize) {
     print!("{} {:?} ", padding, expr.type_);
 
     match &expr.kind {
-        ExpressionKind::Variable { name, type_ } => {
-            println!("Variable {} of type {:?}", name, type_);
+        ExpressionKind::Variable { name } => {
+            println!("Variable {}", name);
         }
 
         ExpressionKind::IntLiteral { value } => {
